@@ -203,37 +203,93 @@ const FACE={
   lose: ["00000000","00000000","11100111","00000000","00000000","00111100","01000010","00000000"],
   sleep:["00000000","00000000","11100111","00000000","00000000","00011000","00000000","00000000"]};
 
+// 窓の夜景（毎回同じ配置になるよう固定の乱数）
+const CITY=(()=>{let s=7;const r=()=>(s=(s*16807)%2147483647)/2147483647;const b=[];
+  for(let i=0;i<46;i++){const w=.012+r()*.03,h=.25+r()*.7;const win=[];for(let k=0;k<14;k++)win.push([r(),r(),r()*6+1]);b.push({x:i/46,w,h,win});}return b;})();
+const DUST=Array.from({length:40},(_,i)=>({x:Math.random(),y:Math.random(),s:.3+Math.random()*.7,v:.004+Math.random()*.01}));
+
+function roomMood(){ // 今月の成績で照明を変える
+  const d=S.status; if(!d)return{c:"139,92,255",a:.10,alert:false};
+  if(d.halted)return{c:"90,90,120",a:.18,alert:false};
+  const m=d.month_return;
+  if(m>=d.target)return{c:"255,198,92",a:.16,alert:false};
+  if(m<=-d.max_loss*.6)return{c:"255,85,119",a:.18,alert:true};
+  return m>=0?{c:"63,242,181",a:.08+Math.min(.08,m),alert:false}:{c:"255,95,199",a:.10,alert:false};
+}
+
 function drawRoom(now,dt){
   const[W,H]=CR.fit(),x=CR.x; x.clearRect(0,0,W,H);
-  // 奥の壁
-  const g=x.createLinearGradient(0,0,0,H); g.addColorStop(0,"#1a0f2e"); g.addColorStop(.62,"#120a22"); g.addColorStop(.62,"#0d0718"); g.addColorStop(1,"#08040f");
-  x.fillStyle=g; x.fillRect(0,0,W,H);
-  // 床のパース線
-  const hz=H*.62; x.strokeStyle="rgba(255,95,199,.16)"; x.lineWidth=1;
-  for(let i=-10;i<=10;i++){x.beginPath();x.moveTo(W/2+i*W*.04,hz);x.lineTo(W/2+i*W*.22,H);x.stroke();}
-  for(let k=0;k<6;k++){const y=hz+(H-hz)*Math.pow(((k+(now/2400)%1)/6),1.7);x.beginPath();x.moveTo(0,y);x.lineTo(W,y);x.stroke();}
-  // 壁の大スクリーン（注目銘柄の価格）
-  const fp=PAIRS[S.focus], sw=Math.min(W*.46,320), sh=hz*.48, sx=W/2-sw/2, sy=hz*.12;
-  x.fillStyle="#05030a"; x.strokeStyle="rgba(139,92,255,.7)"; x.lineWidth=2; rr(x,sx,sy,sw,sh,6); x.fill(); x.stroke();
-  const hs=S.hist[fp]; if(hs&&hs.length>2){const v=hs.map(h=>h[1]).concat(S.shown[fp]||[]),lo=Math.min(...v),hi=Math.max(...v);
-    x.beginPath(); v.forEach((p,i)=>{const px=sx+8+i/(v.length-1)*(sw-16),py=sy+sh-10-(p-lo)/(hi-lo||1)*(sh-34); i?x.lineTo(px,py):x.moveTo(px,py);});
-    x.strokeStyle=COIN[fp]; x.lineWidth=1.6; x.shadowColor=COIN[fp]; x.shadowBlur=8; x.stroke(); x.shadowBlur=0;}
-  x.fillStyle="#fff"; x.font="bold 13px ui-monospace,monospace"; x.textAlign="left";
-  x.fillText(`${SYM[fp]}  ${fmt(S.shown[fp],fp)}`,sx+10,sy+18);
-  // ネオンサイン
-  x.font="bold 11px ui-monospace,monospace"; x.textAlign="right"; x.fillStyle="#ff5fc7"; x.shadowColor="#ff5fc7"; x.shadowBlur=12+Math.sin(now/300)*4;
-  x.fillText("ROOT",W-14,hz*.22); x.fillStyle="#8b5cff"; x.shadowColor="#8b5cff"; x.fillText("TRADING",W-14,hz*.22+14); x.shadowBlur=0;
-  x.textAlign="left";
-  // 3体のボット
-  const u=Math.max(3,Math.min(W/110,H/62));   // ドット1つの大きさ
-  PAIRS.forEach((p,i)=>{
-    const cx=W*(.2+i*.3), base=H*.86;
-    drawBot(x,p,cx,base,u,now,i);
-  });
-  // 紙吹雪（コイン）
+  const hz=H*.62, mood=roomMood();
+  // 壁
+  const g=x.createLinearGradient(0,0,0,hz); g.addColorStop(0,"#170c2a"); g.addColorStop(1,"#120a22");
+  x.fillStyle=g; x.fillRect(0,0,W,hz);
+  // 窓（左右）と夜景
+  const ww=W*.15, wh=hz*.38, wy=hz*.08;
+  for(const wx of [W*.04, W*.81]){
+    x.save(); rr(x,wx,wy,ww,wh,4); x.clip();
+    const sky=x.createLinearGradient(0,wy,0,wy+wh); sky.addColorStop(0,"#0b0820"); sky.addColorStop(1,"#2a1240"); x.fillStyle=sky; x.fillRect(wx,wy,ww,wh);
+    CITY.forEach((b,i)=>{const bx=wx+b.x*ww*1.1-ww*.05, bw=b.w*ww*3, bh=b.h*wh*.75, by=wy+wh-bh;
+      x.fillStyle=i%3?"#0e0a1c":"#140e26"; x.fillRect(bx,by,bw,bh);
+      b.win.forEach(([a,c,sp])=>{const on=Math.sin(now/1000/sp+a*40)>-.2; if(!on)return;
+        x.fillStyle=c>.7?"rgba(255,198,92,.8)":"rgba(255,95,199,.55)"; x.fillRect(bx+a*bw*.8,by+c*bh*.9,1.5,1.5);});});
+    x.restore();
+    x.strokeStyle="rgba(139,92,255,.55)"; x.lineWidth=2; rr(x,wx,wy,ww,wh,4); x.stroke();
+    x.fillStyle="rgba(139,92,255,.35)"; x.fillRect(wx+ww/2-1,wy,2,wh); x.fillRect(wx,wy+wh*.5-1,ww,2);
+  }
+  // 床
+  const fg=x.createLinearGradient(0,hz,0,H); fg.addColorStop(0,"#0f0820"); fg.addColorStop(1,"#06030c"); x.fillStyle=fg; x.fillRect(0,hz,W,H-hz);
+  x.strokeStyle="rgba(255,95,199,.14)"; x.lineWidth=1;
+  for(let i=-12;i<=12;i++){x.beginPath();x.moveTo(W/2+i*W*.04,hz);x.lineTo(W/2+i*W*.24,H);x.stroke();}
+  for(let k=0;k<6;k++){const y=hz+(H-hz)*Math.pow(((k+(now/2600)%1)/6),1.7);x.beginPath();x.moveTo(0,y);x.lineTo(W,y);x.stroke();}
+  // 大スクリーン
+  const fp=PAIRS[S.focus], sw=Math.min(W*.44,330), sh=hz*.42, sx=W/2-sw/2, sy=hz*.06;
+  x.fillStyle="#05030a"; x.strokeStyle="rgba(139,92,255,.8)"; x.lineWidth=2; rr(x,sx,sy,sw,sh,6); x.fill(); x.stroke();
+  const v=(S.hist[fp]||[]).map(h=>h[1]).concat(S.shown[fp]!=null?[S.shown[fp]]:[]);
+  let lineCol=COIN[fp];
+  if(v.length>2){const lo=Math.min(...v),hi=Math.max(...v),P=(p,i)=>[sx+8+i/(v.length-1)*(sw-16), sy+sh-10-(p-lo)/(hi-lo||1)*(sh-38)];
+    const ag=x.createLinearGradient(0,sy+20,0,sy+sh); ag.addColorStop(0,`rgba(${hex(lineCol)},.28)`); ag.addColorStop(1,`rgba(${hex(lineCol)},0)`);
+    x.beginPath(); v.forEach((p,i)=>{const[a,b]=P(p,i); i?x.lineTo(a,b):x.moveTo(a,b);}); x.lineTo(sx+sw-8,sy+sh-6); x.lineTo(sx+8,sy+sh-6); x.fillStyle=ag; x.fill();
+    x.beginPath(); v.forEach((p,i)=>{const[a,b]=P(p,i); i?x.lineTo(a,b):x.moveTo(a,b);});
+    x.strokeStyle=lineCol; x.lineWidth=1.6; x.shadowColor=lineCol; x.shadowBlur=10; x.stroke(); x.shadowBlur=0;
+    const[ha,hb]=P(v[v.length-1],v.length-1), pl=(now%1400)/1400;
+    x.beginPath(); x.arc(ha,hb,3+pl*9,0,7); x.fillStyle=`rgba(${hex(lineCol)},${.4*(1-pl)})`; x.fill();
+    x.beginPath(); x.arc(ha,hb,3,0,7); x.fillStyle="#fff"; x.fill();
+    const ch=v[v.length-1]/v[0]-1; x.font="bold 11px ui-monospace,monospace"; x.textAlign="right";
+    x.fillStyle=ch>=0?"#3ff2b5":"#ff5577"; sw<260?(x.textAlign="left",x.fillText(pct(ch)+"（3時間）",sx+10,sy+34)):x.fillText(pct(ch)+"（3時間）",sx+sw-10,sy+18); x.textAlign="left";}
+  x.fillStyle="#fff"; x.font="bold 13px ui-monospace,monospace"; x.fillText(`${SYM[fp]}  ${fmt(S.shown[fp],fp)}`,sx+10,sy+18);
+  // 床への映り込み
+  x.save(); x.globalAlpha=.10; x.translate(0,hz*2+4); x.scale(1,-1); x.fillStyle=lineCol; x.fillRect(sx,hz*2-sy-sh,sw,sh*.35); x.restore();
+  // ネオン
+  // 警告ランプ
+  if(mood.alert){const a=(Math.sin(now/180)+1)/2; x.fillStyle=`rgba(255,85,119,${.15+.3*a})`; x.beginPath(); x.arc(W/2,6,40,0,7); x.fill();
+    x.fillStyle="#ff5577"; x.font="bold 11px ui-monospace,monospace"; x.textAlign="center"; x.fillText("⚠ 月間損失上限に接近",W/2,hz-6); x.textAlign="left";}
+  // ボット
+  const u=Math.max(3,Math.min(W/104,H/60));
+  PAIRS.forEach((p,i)=>drawBot(x,p,W*(.2+i*.3),H*.9,u,now,i));
+  // 頭上のミニチャート
+  PAIRS.forEach((p,i)=>drawHolo(x,p,W*(.2+i*.3),H*.9-u*34,u,now));
+  // 紙吹雪
   for(let k=parts.length-1;k>=0;k--){const q=parts[k]; q.life-=dt; if(q.life<=0){parts.splice(k,1);continue;}
-    if(!q.x){q.x=W*(.2+q.i*.3);q.y=H*.86-u*22;} q.vy+=160*dt; q.x+=q.vx*dt; q.y+=q.vy*dt;
+    if(!q.x){q.x=W*(.2+q.i*.3);q.y=H*.9-u*22;} q.vy+=160*dt; q.x+=q.vx*dt; q.y+=q.vy*dt;
     x.fillStyle=k%3?COIN[q.pair]:"#ffc65c"; x.globalAlpha=Math.min(1,q.life); x.fillRect(q.x,q.y,u*.9,u*.9); x.globalAlpha=1;}
+  // 浮遊するほこり＋部屋の照明
+  DUST.forEach(d=>{d.y-=d.v*dt; if(d.y<0)d.y=1; x.fillStyle=`rgba(${mood.c},.35)`; x.fillRect(d.x*W+Math.sin(now/1500+d.x*9)*6,d.y*H,d.s*1.6,d.s*1.6);});
+  const lg=x.createRadialGradient(W/2,H*.2,0,W/2,H*.2,W*.7); lg.addColorStop(0,`rgba(${mood.c},${mood.a})`); lg.addColorStop(1,"rgba(0,0,0,0)");
+  x.fillStyle=lg; x.fillRect(0,0,W,H);
+  const vg=x.createRadialGradient(W/2,H/2,H*.3,W/2,H/2,W*.75); vg.addColorStop(0,"rgba(0,0,0,0)"); vg.addColorStop(1,"rgba(0,0,0,.55)"); x.fillStyle=vg; x.fillRect(0,0,W,H);
+}
+
+function drawHolo(x,p,cx,cy,u,now){
+  const hs=(S.hist[p]||[]).slice(-30).map(h=>h[1]); if(S.shown[p]!=null)hs.push(S.shown[p]); if(hs.length<3)return;
+  const w=u*18,h=u*5,lx=cx-w/2,ly=cy+Math.sin(now/900+cx)*u*.4;
+  const lo=Math.min(...hs),hi=Math.max(...hs),ch=hs[hs.length-1]/hs[0]-1,col=ch>=0?"63,242,181":"255,85,119";
+  x.fillStyle=`rgba(${hex(COIN[p])},.07)`; x.strokeStyle=`rgba(${hex(COIN[p])},.45)`; x.lineWidth=1; rr(x,lx,ly,w,h,3); x.fill(); x.stroke();
+  x.beginPath(); hs.forEach((v,i)=>{const a=lx+3+i/(hs.length-1)*(w-6),b=ly+h-3-(v-lo)/(hi-lo||1)*(h-12); i?x.lineTo(a,b):x.moveTo(a,b);});
+  x.strokeStyle=`rgb(${col})`; x.lineWidth=1.2; x.stroke();
+  x.font=`bold ${Math.max(9,u*1.7)}px ui-monospace,monospace`; x.fillStyle=`rgb(${col})`; x.textAlign="right";
+  x.fillText(pct(ch),lx+w-3,ly+u*2); x.textAlign="left";
+  // 投影の光
+  x.fillStyle=`rgba(${hex(COIN[p])},.06)`; x.beginPath(); x.moveTo(lx+w*.3,ly+h); x.lineTo(lx+w*.7,ly+h); x.lineTo(cx+u,cy+u*13); x.lineTo(cx-u,cy+u*13); x.fill();
 }
 
 function drawBot(x,p,cx,base,u,now,i){
@@ -272,18 +328,20 @@ function drawBot(x,p,cx,base,u,now,i){
   x.fillRect(cx-u*.9,hy-u*4,u*1.8,u*1.4); x.shadowBlur=0;
   // 顔
   let f=FACE[st]||FACE.watch; if(st==="watch"&&(t%4)<.15)f=FACE.blink;
+  const look=(st==="watch"||st==="hold")?Math.round(Math.sin(t*.37)*1.2):0;
   const fc=st==="lose"?"#ff5577":st==="win"?"#ffc65c":COIN[p];
   x.fillStyle=fc; x.shadowColor=fc; x.shadowBlur=6;
-  for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(f[r][c]==="1")x.fillRect(hx+u*(1+c),hy+u*r*.95+u*.3,u*.92,u*.85);
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(f[r][c]==="1")x.fillRect(hx+u*(1+c+(r<3?look*.5:0)),hy+u*r*.95+u*.3,u*.92,u*.85);
   x.shadowBlur=0;
   // 名札
   x.fillStyle=COIN[p]; x.font=`bold ${Math.max(10,u*2.2)}px ui-monospace,monospace`; x.textAlign="center";
   x.fillText(SYM[p],cx,base+u*3.6);
   // 吹き出し
-  const say={buy:"買った！",win:"利確！",lose:"損切り…",sleep:"Zzz",hold:"保有中"}[st];
-  if(say){x.font=`bold ${Math.max(10,u*2)}px "Hiragino Sans",sans-serif`; const tw=x.measureText(say).width+u*2.4, bx=cx-tw/2, byy=hy-u*8.5+(st==="sleep"?Math.sin(t*2)*u:0);
+  let hp="保有中"; const hpos=S.status&&S.status.positions.find(q=>q.pair===p); if(hpos&&S.shown[p])hp="保有 "+pct(S.shown[p]/hpos.entry-1,1);
+  const say={buy:"買った！",win:"利確！",lose:"損切り…",sleep:"Zzz",hold:hp}[st];
+  if(say){x.font=`bold ${Math.max(10,u*2)}px "Hiragino Sans",sans-serif`; const tw=x.measureText(say).width+u*2.4, bx=cx+u*6, byy=hy-u*1.5+(st==="sleep"?Math.sin(t*2)*u:0);
     x.fillStyle=st==="lose"?"rgba(255,85,119,.9)":st==="win"?"rgba(255,198,92,.95)":st==="sleep"?"rgba(154,143,176,.5)":"rgba(241,233,255,.92)";
-    rr(x,bx,byy,tw,u*3.6,u*1); x.fill(); x.fillStyle="#120a1f"; x.fillText(say,cx,byy+u*2.6);}
+    rr(x,bx,byy,tw,u*3.6,u*1); x.fill(); x.fillStyle="#120a1f"; x.fillText(say,bx+tw/2,byy+u*2.6);}
   x.textAlign="left";
 }
 function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath();}
