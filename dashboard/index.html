@@ -141,6 +141,11 @@ async function api(file, pass){
 async function load(){
   const demo = new URLSearchParams(location.search).has("demo") || location.protocol === "file:";
   if (demo) { $("demo").hidden = false; DATA = sampleData(); render(DATA); renderBT(sampleBT()); return; }
+  try {
+    const r = await fetch("/data/status.json", {cache:"no-store"});
+    if (r.ok) { DATA = await r.json(); render(DATA);
+      fetch("/data/backtest.json", {cache:"no-store"}).then(x => x.ok ? x.json() : null).then(renderBT).catch(()=>{}); return; }
+  } catch (e) {}
   const pass = store.get("rb_pass");
   if (!pass) { $("login").classList.add("show"); return; }
   try {

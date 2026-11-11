@@ -209,6 +209,7 @@ async function loadMarket(withCandles){
   } catch(e) {}
 }
 async function loadStatus(){
+  if(!DEMO){try{const r=await fetch("/data/status.json",{cache:"no-store"});if(r.ok){applyStatus(await r.json());return;}}catch(e){}}
   if (DEMO) return demoStatus();
   const pass = store.get("rb_pass"); if (!pass) { $("login").classList.add("show"); return; }
   try {

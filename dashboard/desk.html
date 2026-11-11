@@ -184,6 +184,7 @@ async function loadMarket(full){
 async function loadAllCandles(){ if(DEMO)return; for(const p of PAIRS){try{const d=await(await fetch(`/api/market?pair=${p}`)).json();
   if(d.ohlc){S.ohlc[p]=d.ohlc;S.hist[p]=d.ohlc.map(r=>[r[0],r[4]]);}}catch(e){}}}
 async function loadStatus(){
+  if(!DEMO){try{const r=await fetch("/data/status.json",{cache:"no-store"});if(r.ok){applyStatus(await r.json());return;}}catch(e){}}
   if(DEMO)return demoStatus();
   const pass=store.get("rb_pass"); if(!pass){$("login").classList.add("show");return;}
   try{const r=await fetch("/api/status",{headers:{"x-dash-pass":pass},cache:"no-store"});

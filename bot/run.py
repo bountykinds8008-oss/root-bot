@@ -16,6 +16,8 @@ from .engine import new_state, step
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / "data" / "state.json"
 STATUS = ROOT / "data" / "status.json"
+PUBLIC = ROOT / "dashboard" / "data" / "status.json"  # 画面（Vercel）が読む公開用コピー
+PUBLISH_EVERY_MS = 55 * 60 * 1000  # 約1時間ごと（Vercelの公開回数を抑える）
 
 
 def load_state():
@@ -42,6 +44,12 @@ def save(state, summary, market):
         "bot_stats": state.get("bot_stats", {}),
     }
     STATUS.write_text(json.dumps(status, ensure_ascii=False))
+    # 公開用コピー：前回から約1時間たったとき、または売買があったときだけ更新
+    prev = json.loads(PUBLIC.read_text()) if PUBLIC.exists() else {}
+    traded = len(prev.get("trades", [])) != len(status["trades"]) or prev.get("halted") != status["halted"]
+    if traded or status["updated_at"] - prev.get("updated_at", 0) >= PUBLISH_EVERY_MS:
+        PUBLIC.parent.mkdir(parents=True, exist_ok=True)
+        PUBLIC.write_text(json.dumps(status, ensure_ascii=False))
 
 
 def main():
