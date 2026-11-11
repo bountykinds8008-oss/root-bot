@@ -91,11 +91,23 @@
   .login input{width:100%;padding:13px;border-radius:8px;border:1px solid var(--edge);background:var(--pane);color:var(--text);font:inherit;font-size:16px;margin:14px 0 10px}
   .login button{width:100%;padding:13px;border-radius:8px;border:none;background:var(--edge);color:#1a0716;font:inherit;font-weight:800}
   /* 縦長（iPhone） */
+  /* 縦長（iPhone）：最初の1画面で完結する縦型ライブ映像。下にスクロールで詳細 */
   @media (max-aspect-ratio: 1/1){
-    html,body{overflow:auto} #desk{position:static;min-height:100%;
-      grid-template-columns:1fr 1fr;grid-template-rows:auto auto 300px 360px 260px 170px 150px;
-      grid-template-areas:"bar bar" "tiles tiles" "room room" "candle candle" "feed feed" "equity equity" "month month"}
-    .tiles{grid-template-columns:repeat(3,1fr)} .tile .v{font-size:14px}
+    html,body{overflow:auto;overflow-x:hidden}
+    .tiles>.tile:nth-child(6){order:3} .tiles>.tile:nth-child(3),.tiles>.tile:nth-child(4),.tiles>.tile:nth-child(5){order:4}
+    #desk{position:static;padding:max(8px,env(safe-area-inset-top)) 7px 10px;gap:6px;
+      grid-template-columns:1fr;
+      grid-template-rows:auto auto calc(41dvh) calc(37dvh) 300px 200px 230px;
+      grid-template-areas:"bar" "tiles" "room" "candle" "feed" "equity" "month"}
+    .bar .logo{font-size:12px;letter-spacing:.16em} .bar .logo small{display:none} .bar .rec{margin-left:6px}
+    .bar .tb{padding:2px 7px;font-size:10px} .bar #bTv{display:none} .clock{font-size:10px}
+    .tiles{grid-template-columns:repeat(3,1fr);gap:5px}
+    .tile{padding:5px 7px} .tile .k{font-size:8px;letter-spacing:.08em} .tile .k span{display:none}
+    .tile .v{font-size:clamp(12px,3.9vw,17px);margin-top:1px} .tile .s{font-size:9px}
+    .tile .bar2{margin-top:4px}
+    .pane>h3{font-size:9px;padding:5px 8px 0}
+    .fill{inset:21px 4px 4px}
+    .banner div{font-size:20px}
   }
 </style>
 </head>
@@ -138,7 +150,7 @@ PAIRS.forEach(p=>{S.mood[p]={state:"watch",until:0};S.hist[p]=[];});
 S.h1={};
 
 // TV表示のときは描画全体を拡大（文字・線を遠くから見やすく）
-function canvas(id){const c=$(id),x=c.getContext("2d");return{c,x,fit(){const r=c.getBoundingClientRect(),d=Math.min(2,devicePixelRatio||1);
+function canvas(id){const c=$(id),x=c.getContext("2d");return{c,x,fit(){const r=c.getBoundingClientRect(),d=Math.min(3,devicePixelRatio||1);
   const z=document.body.classList.contains("tv")?Math.max(1,Math.min(1.8,innerWidth/1100)):1;
   if(c.width!==Math.round(r.width*d)||c.height!==Math.round(r.height*d)){c.width=Math.round(r.width*d);c.height=Math.round(r.height*d);}
   x.setTransform(d*z,0,0,d*z,0,0);return[r.width/z,r.height/z];}};}
@@ -329,7 +341,8 @@ function drawRoom(now,dt){
   const u=Math.max(3,Math.min(W/104,H/60));
   PAIRS.forEach((p,i)=>drawBot(x,p,W*(.2+i*.3),H*.9,u,now,i));
   // 頭上のミニチャート
-  PAIRS.forEach((p,i)=>drawHolo(x,p,W*(.2+i*.3),H*.9-u*37.5,u,now));
+  const narrowR=W<520; S.narrowR=narrowR;
+  PAIRS.forEach((p,i)=>drawHolo(x,p,W*(.2+i*.3),H*.9-u*(narrowR?45:37.5),u,now));
   // 紙吹雪
   for(let k=parts.length-1;k>=0;k--){const q=parts[k]; q.life-=dt; if(q.life<=0){parts.splice(k,1);continue;}
     if(!q.x){q.x=W*(.2+q.i*.3);q.y=H*.9-u*22;} q.vy+=160*dt; q.x+=q.vx*dt; q.y+=q.vy*dt;
@@ -442,15 +455,16 @@ function drawBot(x,p,cx,base,u,now,i){
     x.moveTo(cx-cw0/2,cy0);x.lineTo(cx-cw0/2,cy0-u*2);x.lineTo(cx-cw0/4,cy0-u*.9);x.lineTo(cx,cy0-u*2.4);x.lineTo(cx+cw0/4,cy0-u*.9);x.lineTo(cx+cw0/2,cy0-u*2);x.lineTo(cx+cw0/2,cy0);x.closePath();x.fill();x.shadowBlur=0;}
   // 名札：名前・レベル・経験値
   const fs=Math.max(10,u*2.1); x.font=`bold ${fs}px "Hiragino Sans",ui-monospace,sans-serif`; x.textAlign="center";
-  x.fillStyle=COIN[p]; x.fillText(`${C.name}`,cx-u*2.2,base+u*3.6);
-  x.fillStyle="#ffc65c"; x.font=`bold ${fs*.85}px ui-monospace,monospace`; x.fillText(`Lv.${lv}`,cx+u*4.4,base+u*3.6);
+  const nw=x.measureText(C.name).width; x.font=`bold ${fs*.85}px ui-monospace,monospace`; const lw=x.measureText(`Lv.${lv}`).width, gap=fs*.35, sx0=cx-(nw+gap+lw)/2;
+  x.textAlign="left"; x.font=`bold ${fs}px "Hiragino Sans",ui-monospace,sans-serif`; x.fillStyle=COIN[p]; x.fillText(C.name,sx0,base+u*3.6);
+  x.font=`bold ${fs*.85}px ui-monospace,monospace`; x.fillStyle="#ffc65c"; x.fillText(`Lv.${lv}`,sx0+nw+gap,base+u*3.6); x.textAlign="center";
   const xb=u*12; x.fillStyle="rgba(255,255,255,.1)"; x.fillRect(cx-xb/2,base+u*4.6,xb,u*.6); x.fillStyle=COIN[p]; x.fillRect(cx-xb/2,base+u*4.6,xb*xp,u*.6);
   if(bs.streak>=2){x.font=`bold ${fs*.75}px "Hiragino Sans",sans-serif`;x.fillStyle="#ffc65c";x.fillText(`${bs.streak}連勝中`,cx,base+u*6.8);}
   // 吹き出し
   let hp="保有中"; const hpos=S.status&&S.status.positions.find(q=>q.pair===p); if(hpos&&S.shown[p])hp="保有 "+pct(S.shown[p]/hpos.entry-1,1);
   const jd=judge(p); const wt=jd?(jd.met===4?"買い時！":jd.met===3?"あと1つ…":"条件 "+jd.met+"/4"):null;
   const say={buy:"買った！",win:"利確！",lose:"損切り…",sleep:"Zzz",hold:hp,watch:wt}[st];
-  if(say){x.font=`bold ${Math.max(10,u*2)}px "Hiragino Sans",sans-serif`; const tw=x.measureText(say).width+u*2.4, bx=cx+u*(hw/2+1.5), byy=hy-u*1.5+(st==="sleep"?Math.sin(t*2)*u:0);
+  if(say){x.font=`bold ${Math.max(10,u*2)}px "Hiragino Sans",sans-serif`; const tw=x.measureText(say).width+u*2.4, bx=S.narrowR?cx-tw/2:cx+u*(hw/2+1.5), byy=(S.narrowR?base-u*38:hy-u*1.5)+(st==="sleep"?Math.sin(t*2)*u:0);
     x.fillStyle=st==="lose"?"rgba(255,85,119,.9)":st==="win"?"rgba(255,198,92,.95)":st==="sleep"?"rgba(154,143,176,.5)":"rgba(241,233,255,.92)";
     rr(x,bx,byy,tw,u*3.6,u*1); x.fill(); x.fillStyle="#120a1f"; x.fillText(say,bx+tw/2,byy+u*2.6);}
   x.textAlign="left";
@@ -610,7 +624,8 @@ function demoMarket(){const now=Date.now(),t={};
     const hc=S.h1[p]&&S.h1[p][S.h1[p].length-1]; if(hc){hc[4]=D.px[p];hc[2]=Math.max(hc[2],D.px[p]);hc[3]=Math.min(hc[3],D.px[p]);}}
   applyTickers(t);}
 function demoStatus(){D.t++;const now=Date.now();
-  if(D.t%5===0){const p=PAIRS[(D.t/5)%3|0],held=D.pos.find(q=>q.pair===p);
+  if(D.t%5===0){const p=PAIRS[(D.t/5)%3|0],held=D.pos.find(q=>q.pair===p),jd=judge(p);
+    if(!held&&jd&&jd.met<3){}else
     if(held){const px=D.px[p],pnl=(px-held.entry)*held.amount,win=pnl>=0;
       D.trades.push({ts:now,pair:p,side:"sell",price:px,reason:win?"トレンド終了":"損切り",pnl:Math.round(pnl)});const bs=D.stats[p];bs.trades++;if(pnl>0){bs.wins++;bs.streak++;}else bs.streak=0;D.pos=D.pos.filter(q=>q!==held);D.eq+=pnl;}
     else{D.trades.push({ts:now,pair:p,side:"buy",price:D.px[p],reason:"トレンド買い",pnl:null});D.pos.push({pair:p,amount:30000/D.px[p],entry:D.px[p],stop:D.px[p]*.985});}}
