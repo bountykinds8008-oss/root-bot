@@ -17,7 +17,7 @@
   .num{font-variant-numeric:tabular-nums}
   .up{color:var(--up)} .down{color:var(--down)} .gold{color:var(--gold)}
   #desk{position:fixed;inset:0;padding:max(8px,env(safe-area-inset-top)) 8px 8px;display:grid;gap:7px;
-    grid-template-columns:1fr 2fr 1fr;grid-template-rows:auto auto 1.7fr 1fr;
+    grid-template-columns:1.35fr 1.65fr 1fr;grid-template-rows:auto auto 1.9fr 1fr;
     grid-template-areas:"bar bar bar" "tiles tiles tiles" "candle room feed" "equity equity month"}
   .pane{position:relative;background:linear-gradient(180deg,rgba(255,95,199,.05),rgba(139,92,255,.03)),var(--pane);
     border:1px solid rgba(255,95,199,.45);border-radius:6px;overflow:hidden;
@@ -45,6 +45,8 @@
   @keyframes fu{from{background:rgba(63,242,181,.22)}}@keyframes fd{from{background:rgba(255,85,119,.22)}}
   .bar2{height:4px;border-radius:9px;background:#24193a;margin-top:6px;position:relative;overflow:hidden}
   .bar2 i{position:absolute;top:0;bottom:0;left:0;background:linear-gradient(90deg,var(--edge2),var(--edge));border-radius:9px;transition:width 1s}
+  .tfb{font:inherit;font-size:10px;background:none;border:1px solid rgba(139,92,255,.35);color:var(--mute);border-radius:4px;padding:1px 6px;margin-left:4px;cursor:pointer}
+  .tfb.on{color:#fff;border-color:var(--edge);background:rgba(255,95,199,.15)}
   .candle{grid-area:candle} .room{grid-area:room} .feed{grid-area:feed} .equity{grid-area:equity} .strip{grid-area:strip} .month{grid-area:month}
   /* 実況 */
   .list{position:absolute;inset:26px 8px 6px;overflow:hidden;mask-image:linear-gradient(#000 80%,transparent)}
@@ -76,7 +78,7 @@
   /* 縦長（iPhone） */
   @media (max-aspect-ratio: 1/1){
     html,body{overflow:auto} #desk{position:static;min-height:100%;
-      grid-template-columns:1fr 1fr;grid-template-rows:auto auto 300px 230px 260px 170px 150px;
+      grid-template-columns:1fr 1fr;grid-template-rows:auto auto 300px 360px 260px 170px 150px;
       grid-template-areas:"bar bar" "tiles tiles" "room room" "candle candle" "feed feed" "equity equity" "month month"}
     .tiles{grid-template-columns:repeat(3,1fr)} .tile .v{font-size:14px}
   }
@@ -118,6 +120,7 @@ const cls=v=>v>0?"up":v<0?"down":"";
 const hm=ts=>new Date(ts).toLocaleTimeString("ja-JP",{timeZone:"Asia/Tokyo",hour:"2-digit",minute:"2-digit"});
 const S={tick:{},shown:{},ohlc:{},hist:{},status:null,seen:0,eqShown:0,focus:0,focusAt:0,mood:{}};
 PAIRS.forEach(p=>{S.mood[p]={state:"watch",until:0};S.hist[p]=[];});
+S.h1={};
 
 function canvas(id){const c=$(id),x=c.getContext("2d");return{c,x,fit(){const r=c.getBoundingClientRect(),d=Math.min(2,devicePixelRatio||1);
   if(c.width!==Math.round(r.width*d)||c.height!==Math.round(r.height*d)){c.width=Math.round(r.width*d);c.height=Math.round(r.height*d);}
@@ -338,7 +341,8 @@ function drawBot(x,p,cx,base,u,now,i){
   x.fillText(SYM[p],cx,base+u*3.6);
   // 吹き出し
   let hp="保有中"; const hpos=S.status&&S.status.positions.find(q=>q.pair===p); if(hpos&&S.shown[p])hp="保有 "+pct(S.shown[p]/hpos.entry-1,1);
-  const say={buy:"買った！",win:"利確！",lose:"損切り…",sleep:"Zzz",hold:hp}[st];
+  const jd=judge(p); const wt=jd?(jd.met===4?"買い時！":jd.met===3?"あと1つ…":"条件 "+jd.met+"/4"):null;
+  const say={buy:"買った！",win:"利確！",lose:"損切り…",sleep:"Zzz",hold:hp,watch:wt}[st];
   if(say){x.font=`bold ${Math.max(10,u*2)}px "Hiragino Sans",sans-serif`; const tw=x.measureText(say).width+u*2.4, bx=cx+u*6, byy=hy-u*1.5+(st==="sleep"?Math.sin(t*2)*u:0);
     x.fillStyle=st==="lose"?"rgba(255,85,119,.9)":st==="win"?"rgba(255,198,92,.95)":st==="sleep"?"rgba(154,143,176,.5)":"rgba(241,233,255,.92)";
     rr(x,bx,byy,tw,u*3.6,u*1); x.fill(); x.fillStyle="#120a1f"; x.fillText(say,bx+tw/2,byy+u*2.6);}
@@ -347,23 +351,96 @@ function drawBot(x,p,cx,base,u,now,i){
 function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath();}
 function hex(h){const n=parseInt(h.slice(1),16);return`${n>>16&255},${n>>8&255},${n&255}`;}
 
-/* ================= ローソク足 ================= */
+/* ================= 本格チャート（ボットと同じ判断を表示） ================= */
+const CFG={EMA_FAST:20,EMA_SLOW:50,RSI_LEN:14,RSI_MIN:50,RSI_MAX:70,ATR_LEN:14};
+let TF="1hour";
+function emaArr(v,n){const k=2/(n+1);let e=null;return v.map(x=>e=e==null?x:x*k+e*(1-k));}
+function rsiArr(c,n){const out=c.map(()=>50);if(c.length<=n)return out;let g=0,l=0;
+  for(let i=1;i<=n;i++){const d=c[i]-c[i-1];g+=Math.max(d,0);l+=Math.max(-d,0);}let ag=g/n,al=l/n;
+  for(let i=n;i<c.length;i++){if(i>n){const d=c[i]-c[i-1];ag=(ag*(n-1)+Math.max(d,0))/n;al=(al*(n-1)+Math.max(-d,0))/n;}out[i]=al===0?100:100-100/(1+ag/al);}return out;}
+// bot/engine.py の signal() と同じ条件（確定した足で判定）
+function judge(p){
+  const o=S.h1[p]; if(!o||o.length<CFG.EMA_SLOW+7)return null;
+  const closed=o.slice(0,-1), c=closed.map(r=>r[4]);
+  const ef=emaArr(c,CFG.EMA_FAST), es=emaArr(c,CFG.EMA_SLOW), r=rsiArr(c,CFG.RSI_LEN), n=c.length-1;
+  const conds=[
+    {k:"短期線(20) > 長期線(50)",ok:ef[n]>es[n]},
+    {k:"価格 > 短期線(20)",ok:c[n]>ef[n]},
+    {k:"長期線(50)が上向き",ok:es[n]>es[n-5]},
+    {k:`RSI ${r[n].toFixed(0)}（${CFG.RSI_MIN}〜${CFG.RSI_MAX}）`,ok:r[n]>=CFG.RSI_MIN&&r[n]<=CFG.RSI_MAX}];
+  return{conds,met:conds.filter(q=>q.ok).length,exit:ef[n]<es[n]};
+}
+async function loadHourly(){
+  if(DEMO)return;
+  for(const p of PAIRS){try{const d=await(await fetch(`/api/market?pair=${p}&tf=1hour`)).json();if(d.ohlc)S.h1[p]=d.ohlc;}catch(e){}}
+}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-tf]");if(!b)return;TF=b.dataset.tf;});
+
 function drawCandles(){
   const[W,H]=CC.fit(),x=CC.x; x.clearRect(0,0,W,H);
-  const p=PAIRS[S.focus], o=(S.ohlc[p]||[]).slice(-60);
-  $("cH").innerHTML=`<span style="color:${COIN[p]};font-weight:700;letter-spacing:.14em">${SYM[p]}/JPY</span><span>1分足・${fmt(S.shown[p],p)}</span>`;
-  if(o.length<2){x.fillStyle="#9a8fb0";x.fillText("読み込み中…",8,20);return;}
-  const live=S.shown[p], lastC=o[o.length-1].slice(); lastC[4]=live; lastC[2]=Math.max(lastC[2],live); lastC[3]=Math.min(lastC[3],live); o[o.length-1]=lastC;
+  const p=PAIRS[S.focus], hourly=TF==="1hour";
+  $("cH").innerHTML=`<span style="color:${COIN[p]};font-weight:700;letter-spacing:.14em">${SYM[p]}/JPY</span>
+    <span><button class="tfb${hourly?" on":""}" data-tf="1hour">1時間足・判断用</button><button class="tfb${hourly?"":" on"}" data-tf="1min">1分足</button></span>`;
+  const src=hourly?S.h1[p]:S.ohlc[p]; if(!src||src.length<2){x.fillStyle="#9a8fb0";x.fillText("読み込み中…",8,20);return;}
+  const all=src.map(r=>r.slice()); const live=S.shown[p];
+  if(live!=null){const lc=all[all.length-1];lc[4]=live;lc[2]=Math.max(lc[2],live);lc[3]=Math.min(lc[3],live);}
+  const closes=all.map(r=>r[4]), ef=emaArr(closes,CFG.EMA_FAST), es=emaArr(closes,CFG.EMA_SLOW), rs=rsiArr(closes,CFG.RSI_LEN);
+  const N=Math.min(all.length,hourly?(W<420?48:72):60), off=all.length-N, o=all.slice(off);
   const pos=S.status&&S.status.positions.find(q=>q.pair===p);
-  let lo=Math.min(...o.map(r=>r[3])),hi=Math.max(...o.map(r=>r[2])); const pd=(hi-lo)*.08; lo-=pd; hi+=pd;
-  const R=62, cw=(W-R)/o.length, Y=v=>(1-(v-lo)/(hi-lo))*(H-14)+4;
+  const R=62, narrowC=(W-62)<560, sigH=hourly?(narrowC?58:40):0, ph=hourly?H*.64-sigH*.4:H-14, sigTop=ph+16, rsTop=sigTop+sigH+6, rsH=H-rsTop-4;
+  let lo=Math.min(...o.map(r=>r[3])),hi=Math.max(...o.map(r=>r[2]));
+  if(hourly){for(let i=off;i<all.length;i++){if(i>=CFG.EMA_SLOW/2){lo=Math.min(lo,es[i],ef[i]);hi=Math.max(hi,es[i],ef[i]);}}}
+  if(pos){lo=Math.min(lo,pos.stop);hi=Math.max(hi,pos.entry);}
+  const pd=(hi-lo)*.08; lo-=pd; hi+=pd;
+  const cw=(W-R)/N, X=i=>i*cw+cw/2, Y=v=>(1-(v-lo)/(hi-lo))*(ph-6)+4;
   x.font="10px ui-monospace,monospace";
   for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=Y(v);x.strokeStyle="rgba(139,92,255,.12)";x.beginPath();x.moveTo(0,y);x.lineTo(W-R,y);x.stroke();x.fillStyle="#6d6385";x.fillText(fmt(v,p).replace("¥",""),W-R+4,y+3);}
-  o.forEach((r,i)=>{const[,op,h,l,c]=r,X=i*cw+cw/2,up=c>=op,col=up?"#3ff2b5":"#ff5577";
-    x.strokeStyle=col;x.beginPath();x.moveTo(X,Y(h));x.lineTo(X,Y(l));x.stroke();
-    x.fillStyle=col;x.fillRect(X-Math.max(1,cw*.32),Math.min(Y(op),Y(c)),Math.max(2,cw*.64),Math.max(1,Math.abs(Y(op)-Y(c))));});
-  if(pos&&pos.entry>lo&&pos.entry<hi){x.setLineDash([4,4]);x.strokeStyle="#ffc65c";x.beginPath();x.moveTo(0,Y(pos.entry));x.lineTo(W-R,Y(pos.entry));x.stroke();x.setLineDash([]);x.fillStyle="#ffc65c";x.fillText("買値",3,Y(pos.entry)-3);}
-  const y=Y(live); x.fillStyle=lastC[4]>=lastC[1]?"#3ff2b5":"#ff5577"; x.fillRect(W-R+1,y-8,R-2,16); x.fillStyle="#0a0612"; x.font="bold 10px ui-monospace,monospace"; x.fillText(fmt(live,p).replace("¥",""),W-R+4,y+4);
+  // 日付の区切り（1時間足）
+  if(hourly)o.forEach((r,i)=>{const d=new Date(r[0]+9*36e5);if(d.getUTCHours()===0){x.strokeStyle="rgba(139,92,255,.18)";x.setLineDash([2,4]);x.beginPath();x.moveTo(X(i),4);x.lineTo(X(i),H);x.stroke();x.setLineDash([]);
+    x.fillStyle="#6d6385";x.fillText(`${d.getUTCMonth()+1}/${d.getUTCDate()}`,X(i)+3,ph-2);}});
+  // ローソク
+  o.forEach((r,i)=>{const[,op,h,l,c]=r,up=c>=op,col=up?"#3ff2b5":"#ff5577",xx=X(i),forming=i===o.length-1;
+    x.globalAlpha=forming?.75:1; x.strokeStyle=col;x.beginPath();x.moveTo(xx,Y(h));x.lineTo(xx,Y(l));x.stroke();
+    x.fillStyle=col;x.fillRect(xx-Math.max(1,cw*.32),Math.min(Y(op),Y(c)),Math.max(2,cw*.64),Math.max(1,Math.abs(Y(op)-Y(c))));x.globalAlpha=1;});
+  // 移動平均線
+  if(hourly){x.fillStyle="rgba(10,6,18,.75)";rr(x,W-R-124,2,122,15,3);x.fill();[[ef,"#ffc65c","短期20"],[es,"#b48cff","長期50"]].forEach(([a,col,name],k)=>{
+    x.beginPath();let st=false;for(let i=0;i<N;i++){const gi=off+i;if(gi<(k?CFG.EMA_SLOW:CFG.EMA_FAST)/2)continue;const yy=Y(a[gi]);st?x.lineTo(X(i),yy):(x.moveTo(X(i),yy),st=true);}
+    x.strokeStyle=col;x.lineWidth=1.5;x.shadowColor=col;x.shadowBlur=6;x.stroke();x.shadowBlur=0;x.lineWidth=1;
+    x.fillStyle=col;x.fillRect(W-R-118+k*58,8,14,2);x.fillStyle="#d8cfe8";x.fillText(name,W-R-101+k*58,12);});}
+  // 売買の印
+  const bucket=hourly?36e5:6e4;
+  if(S.status)S.status.trades.filter(q=>q.pair===p).forEach(q=>{const i=o.findIndex(r=>q.ts>=r[0]&&q.ts<r[0]+bucket);if(i<0)return;
+    const xx=X(i),buy=q.side==="buy",yy=buy?Y(o[i][3])+6:Y(o[i][2])-6;x.fillStyle=buy?"#3ff2b5":"#ff5577";x.beginPath();
+    if(buy){x.moveTo(xx,yy);x.lineTo(xx-5,yy+9);x.lineTo(xx+5,yy+9);}else{x.moveTo(xx,yy);x.lineTo(xx-5,yy-9);x.lineTo(xx+5,yy-9);}x.fill();
+    x.font="bold 9px ui-monospace,monospace";x.textAlign="center";x.fillText(buy?"買":"売",xx,buy?yy+19:yy-12);x.textAlign="left";x.font="10px ui-monospace,monospace";});
+  // 買値・損切り
+  if(pos){[[pos.entry,"#ffc65c","買値"],[pos.stop,"#ff5577","損切り"]].forEach(([v,col,name])=>{if(v<lo||v>hi)return;
+    x.setLineDash([4,4]);x.strokeStyle=col;x.beginPath();x.moveTo(0,Y(v));x.lineTo(W-R,Y(v));x.stroke();x.setLineDash([]);
+    x.fillStyle=col;x.fillText(`${name} ${fmt(v,p).replace("¥","")}`,4,Y(v)-3);});}
+  // 現在値
+  const y=Y(live);x.fillStyle=o[o.length-1][4]>=o[o.length-1][1]?"#3ff2b5":"#ff5577";x.fillRect(W-R+1,y-8,R-2,16);
+  x.fillStyle="#0a0612";x.font="bold 10px ui-monospace,monospace";x.fillText(fmt(live,p).replace("¥",""),W-R+4,y+4);x.font="10px ui-monospace,monospace";
+  if(!hourly)return;
+  // RSI
+  const RY=v=>rsTop+(1-v/100)*rsH;
+  x.fillStyle="rgba(63,242,181,.07)";x.fillRect(0,RY(CFG.RSI_MAX),W-R,RY(CFG.RSI_MIN)-RY(CFG.RSI_MAX));
+  x.strokeStyle="rgba(139,92,255,.25)";x.strokeRect(.5,rsTop+.5,W-R-1,rsH-1);
+  [CFG.RSI_MAX,CFG.RSI_MIN].forEach(v=>{x.fillStyle="#6d6385";x.fillText(v,W-R+4,RY(v)+3);});
+  x.beginPath();for(let i=0;i<N;i++){const yy=RY(rs[off+i]);i?x.lineTo(X(i),yy):x.moveTo(X(i),yy);}x.strokeStyle="#55d6ff";x.lineWidth=1.3;x.stroke();x.lineWidth=1;
+  x.fillStyle="#55d6ff";x.fillText("RSI "+rs[all.length-1].toFixed(0)+"（いま）",4,rsTop+11);
+  // 判断チェック
+  const j=judge(p); if(!j)return;
+  const lines=pos?[{k:`保有中・損切り ${fmt(pos.stop,p)}`,ok:true,head:true},{k:"短期線が長期線を下回ったら売り",ok:!j.exit}]:j.conds;
+  const title=pos?(j.exit?"▼ 売りシグナル":"● 保有継続"):(j.met===4?"▲ 買いシグナル点灯":j.met===3?"あと1条件で買い":`様子見（${j.met}/4）`);
+  const tcol=pos?(j.exit?"#ff5577":"#ffc65c"):(j.met===4?"#3ff2b5":j.met===3?"#ffc65c":"#9a8fb0");
+  x.fillStyle="rgba(10,6,18,.6)";x.strokeStyle=tcol+"88";rr(x,0.5,sigTop,W-R-1,sigH,5);x.fill();x.stroke();
+  x.font="bold 11px ui-monospace,'Hiragino Sans',sans-serif";x.fillStyle=tcol;x.fillText(title,8,sigTop+15);
+  x.font="9px ui-monospace,'Hiragino Sans',sans-serif";x.fillStyle="#6d6385";x.textAlign="right";x.fillText("確定した1時間足で判定",W-R-8,sigTop+14);x.textAlign="left";
+  x.font="10px ui-monospace,'Hiragino Sans',sans-serif";
+  const cols=narrowC?2:4, cwid=(W-R-12)/cols;
+  lines.forEach((q,i)=>{const cx2=6+(i%cols)*cwid, cy2=sigTop+30+Math.floor(i/cols)*14;
+    x.fillStyle=q.ok?"#3ff2b5":"#ff5577";x.fillText(q.head?"■":(q.ok?"✓":"✗"),cx2,cy2);
+    x.fillStyle="#d8cfe8";let t=q.k;while(x.measureText(t).width>cwid-18&&t.length>3)t=t.slice(0,-2)+"…";x.fillText(t,cx2+12,cy2);});
 }
 
 /* ================= 資産グラフ・3銘柄 ================= */
@@ -405,6 +482,11 @@ setInterval(()=>$("clock").textContent=new Date().toLocaleString("ja-JP",{timeZo
 /* ================= サンプル映像用 ================= */
 const D={px:{btc_jpy:15320000,eth_jpy:528000,xrp_jpy:318.4},open:{},eq:118400,trades:[],pos:[],t:0,hist:[]};
 function demoInit(){const now=Date.now();
+  const hr=Math.floor(now/36e5)*36e5, drift={btc_jpy:[.0004,.0016],eth_jpy:[.0012,.0009],xrp_jpy:[-.0005,-.0012]};
+  for(const p of PAIRS){let v=D.px[p]*0.93;S.h1[p]=[];
+    for(let i=143;i>=0;i--){const o=v,dr=i>40?drift[p][0]:drift[p][1];v*=1+dr+(Math.random()-.5)*.009;
+      S.h1[p].push([hr-i*36e5,o,Math.max(o,v)*(1+Math.random()*.003),Math.min(o,v)*(1-Math.random()*.003),v]);}
+    const k=D.px[p]/v;S.h1[p].forEach(r=>{for(let j=1;j<5;j++)r[j]*=k;});}
   for(const p of PAIRS){D.open[p]=D.px[p]*(1-.012+Math.random()*.03);let v=D.px[p]*.992;S.ohlc[p]=[];
     for(let i=180;i>0;i--){const o=v;v*=1+(Math.random()-.48)*.0018;const h=Math.max(o,v)*(1+Math.random()*.0006),l=Math.min(o,v)*(1-Math.random()*.0006);S.ohlc[p].push([now-i*60000,o,h,l,v]);}
     D.px[p]=v;S.hist[p]=S.ohlc[p].map(r=>[r[0],r[4]]);}
@@ -416,7 +498,8 @@ function demoInit(){const now=Date.now();
 function demoMarket(){const now=Date.now(),t={};
   for(const p of PAIRS){D.px[p]*=1+(Math.random()-.485)*.0009;const o=S.ohlc[p],lc=o[o.length-1];
     if(now-lc[0]>60000){o.push([now,lc[4],D.px[p],D.px[p],D.px[p]]);o.shift();}else{lc[2]=Math.max(lc[2],D.px[p]);lc[3]=Math.min(lc[3],D.px[p]);lc[4]=D.px[p];}
-    S.hist[p]=o.map(r=>[r[0],r[4]]); t[p]={last:D.px[p],open:D.open[p]};}
+    S.hist[p]=o.map(r=>[r[0],r[4]]); t[p]={last:D.px[p],open:D.open[p]};
+    const hc=S.h1[p]&&S.h1[p][S.h1[p].length-1]; if(hc){hc[4]=D.px[p];hc[2]=Math.max(hc[2],D.px[p]);hc[3]=Math.min(hc[3],D.px[p]);}}
   applyTickers(t);}
 function demoStatus(){D.t++;const now=Date.now();
   if(D.t%5===0){const p=PAIRS[(D.t/5)%3|0],held=D.pos.find(q=>q.pair===p);
@@ -431,7 +514,8 @@ function demoStatus(){D.t++;const now=Date.now();
 
 /* ================= 起動 ================= */
 if(DEMO){$("demo").hidden=false;demoInit();}
-loadMarket(true); loadAllCandles(); loadStatus();
+loadMarket(true); loadAllCandles(); loadHourly(); loadStatus();
+setInterval(loadHourly,5*60000);
 setInterval(()=>loadMarket(false),DEMO?1000:3000);
 setInterval(()=>DEMO?0:loadAllCandles(),60000);
 setInterval(loadStatus,DEMO?3500:60000);
