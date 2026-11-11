@@ -96,7 +96,7 @@
     <div class="pane tile"><div class="k">状態<span>STATUS</span></div><div class="v" id="tSt">—</div><div class="s" id="tSt2">—</div></div>
   </div>
   <div class="pane candle"><h3 id="cH">CHART<span>1分足</span></h3><div class="fill"><canvas id="cvC"></canvas></div></div>
-  <div class="pane room"><h3>BOT ROOM<span id="roomSub">3体が監視中</span></h3><div class="fill" style="inset:22px 0 0"><canvas id="cvR"></canvas></div></div>
+  <div class="pane room"><h3>BOT ROOM<span id="roomSub">ビット・イーサ・リプル</span></h3><div class="fill" style="inset:22px 0 0"><canvas id="cvR"></canvas></div></div>
   <div class="pane feed"><h3>実況<span>LOG</span></h3><div class="list"><div class="sec">保有中</div><div id="pos"></div><div class="sec">売買</div><div id="log"></div></div></div>
   <div class="pane equity"><h3>資産の推移<span id="eqSpan">EQUITY</span></h3><div class="fill"><canvas id="cvE"></canvas></div></div>
   <div class="pane month"><h3>月ごと<span>目標 +5%</span></h3><div class="list" id="mon" style="mask-image:none"></div></div>
@@ -172,6 +172,7 @@ function applyStatus(d){
   if(!first)fresh.forEach(react);
   S.seen=Math.max(S.seen,0,...d.trades.map(x=>x.ts));
   if(first)S.eqShown=d.equity;
+  checkLevelUp();
   // ボットの基本状態
   for(const p of PAIRS){const mo=S.mood[p]; if(performance.now()<mo.until)continue;
     mo.state=d.halted?"sleep":d.positions.some(x=>x.pair===p)?"hold":"watch";}
@@ -270,7 +271,7 @@ function drawRoom(now,dt){
   const u=Math.max(3,Math.min(W/104,H/60));
   PAIRS.forEach((p,i)=>drawBot(x,p,W*(.2+i*.3),H*.9,u,now,i));
   // 頭上のミニチャート
-  PAIRS.forEach((p,i)=>drawHolo(x,p,W*(.2+i*.3),H*.9-u*34,u,now));
+  PAIRS.forEach((p,i)=>drawHolo(x,p,W*(.2+i*.3),H*.9-u*37.5,u,now));
   // 紙吹雪
   for(let k=parts.length-1;k>=0;k--){const q=parts[k]; q.life-=dt; if(q.life<=0){parts.splice(k,1);continue;}
     if(!q.x){q.x=W*(.2+q.i*.3);q.y=H*.9-u*22;} q.vy+=160*dt; q.x+=q.vx*dt; q.y+=q.vy*dt;
@@ -295,55 +296,103 @@ function drawHolo(x,p,cx,cy,u,now){
   x.fillStyle=`rgba(${hex(COIN[p])},.06)`; x.beginPath(); x.moveTo(lx+w*.3,ly+h); x.lineTo(lx+w*.7,ly+h); x.lineTo(cx+u,cy+u*13); x.lineTo(cx-u,cy+u*13); x.fill();
 }
 
+/* ================= キャラクター ================= */
+// 名前・見た目は CHAR を書き換えれば変えられる
+const CHAR={
+  btc_jpy:{name:"ビット",shell:"#6b4a2a",shell2:"#8f6337",head:"box",  hw:12,hh:8.6,bw:9.5,ant:"single"},
+  eth_jpy:{name:"イーサ",shell:"#3f3685",shell2:"#5a4fb3",head:"tall", hw:9.6,hh:10,bw:7,  ant:"diamond"},
+  xrp_jpy:{name:"リプル",shell:"#1f5468",shell2:"#2c7690",head:"round",hw:11,hh:9,  bw:8,  ant:"twin"}};
+const LV_STEP=3; // 3勝ごとにレベルアップ（最大5）
+function botStats(p){
+  const d=S.status; if(!d)return{wins:0,trades:0,streak:0};
+  if(d.bot_stats&&d.bot_stats[p])return d.bot_stats[p];
+  const sells=d.trades.filter(q=>q.pair===p&&q.side==="sell").sort((a,b)=>a.ts-b.ts);
+  let streak=0; for(let i=sells.length-1;i>=0&&(sells[i].pnl||0)>0;i--)streak++;
+  return{wins:sells.filter(q=>(q.pnl||0)>0).length,trades:sells.length,streak};
+}
+function level(p){const w=botStats(p).wins;return{lv:Math.min(5,1+Math.floor(w/LV_STEP)),xp:Math.min(5,1+Math.floor(w/LV_STEP))>=5?1:(w%LV_STEP)/LV_STEP};}
+const prevLv={};
+function checkLevelUp(){PAIRS.forEach(p=>{const l=level(p).lv;if(prevLv[p]&&l>prevLv[p]){burst(p);burst(p);
+  $("banK").textContent="★ LEVEL UP";$("banK").className="gold";$("banV").innerHTML=`<span style="color:${COIN[p]}">${CHAR[p].name}</span> Lv.${l}`;
+  $("banS").textContent=["","","ヘッドセット装備","マフラー装備","マント装備","王冠を獲得"][l]||"";$("ban").classList.add("show");clearTimeout(banT);banT=setTimeout(()=>$("ban").classList.remove("show"),4200);}
+  prevLv[p]=l;});}
+
 function drawBot(x,p,cx,base,u,now,i){
-  const mo=S.mood[p], st=performance.now()<mo.until?mo.state:mo.state;
-  const t=now/1000+i*1.3;
-  let bob=Math.sin(t*2.2)*u*.35, tilt=0;
+  const C=CHAR[p], mo=S.mood[p], st=mo.state, t=now/1000+i*1.3, {lv,xp}=level(p), bs=botStats(p);
+  let bob=Math.sin(t*2.2)*u*.35;
   if(st==="win")bob=-Math.abs(Math.sin(t*7))*u*3;
   if(st==="buy")bob=Math.sin(t*10)*u*.5;
   if(st==="lose")bob=u*.8;
   if(st==="sleep")bob=Math.sin(t*1.2)*u*.2+u*.5;
   // 影
   x.fillStyle="rgba(0,0,0,.45)"; x.beginPath(); x.ellipse(cx,base+u*.5,u*9,u*1.6,0,0,7); x.fill();
+  // 連勝オーラ（3連勝以上）
+  if(bs.streak>=3&&st!=="sleep"){for(let k=0;k<10;k++){const ph=((t*.8+k/10)%1),ax=cx+Math.sin(k*2.3+t)*u*7,ay=base-u*8-ph*u*22;
+    x.fillStyle=`rgba(${hex(COIN[p])},${.55*(1-ph)})`;x.fillRect(ax,ay,u*.9,u*1.4);}}
   // 机
   x.fillStyle="#2a1d45"; x.fillRect(cx-u*11,base-u*7,u*22,u*1.4);
   x.fillStyle="#1b1230"; x.fillRect(cx-u*10,base-u*5.6,u*1.2,u*5.6); x.fillRect(cx+u*8.8,base-u*5.6,u*1.2,u*5.6);
-  // 机の上のモニター（裏側）＋光
   const lit=st==="sleep"?.15:.55+Math.sin(t*3)*.1;
   x.fillStyle=`rgba(${hex(COIN[p])},${lit*.35})`; x.beginPath(); x.ellipse(cx,base-u*15,u*8,u*6,0,0,7); x.fill();
+  const by=base-u*15+bob, bw=C.bw;
+  // Lv4：マント（体の後ろ）
+  if(lv>=4){const sw=Math.sin(t*2.6)*u*.8;x.fillStyle=COIN[p];x.globalAlpha=.85;x.beginPath();
+    x.moveTo(cx-u*bw/2,by+u*1.2);x.lineTo(cx+u*bw/2,by+u*1.2);x.lineTo(cx+u*(bw/2+2)+sw,by+u*8.5);x.lineTo(cx-u*(bw/2+2)+sw,by+u*8.5);x.closePath();x.fill();x.globalAlpha=1;}
   // 体
-  const by=base-u*7-u*8+bob;
-  x.fillStyle="#3b2a63"; x.fillRect(cx-u*4,by+u*1,u*8,u*7);
-  x.fillStyle=COIN[p]; x.fillRect(cx-u*4,by+u*3,u*8,u*1);              // 胸のライン（担当色）
-  // 腕（キーボードを打つ）
+  x.fillStyle=C.shell; x.fillRect(cx-u*bw/2,by+u*1,u*bw,u*7);
+  x.fillStyle=C.shell2; x.fillRect(cx-u*bw/2,by+u*1,u*bw,u*1);
+  x.fillStyle=COIN[p]; x.fillRect(cx-u*bw/2,by+u*3,u*bw,u*.9);
+  // 胸のマーク
+  x.fillStyle="#0a0612"; x.fillRect(cx-u*1.2,by+u*4.6,u*2.4,u*2.2);
+  x.fillStyle=COIN[p]; x.font=`bold ${u*1.9}px ui-monospace,monospace`; x.textAlign="center"; x.fillText(SYM[p][0],cx,by+u*6.5); x.textAlign="left";
+  // 腕
   const type=(st==="watch"||st==="hold"||st==="buy")?Math.sin(t*(st==="buy"?22:12))*u*.6:0;
-  const armUp=st==="win";
-  x.fillStyle="#4a3778";
-  if(armUp){x.fillRect(cx-u*6,by-u*3+bob*.2,u*1.5,u*5);x.fillRect(cx+u*4.5,by-u*3+bob*.2,u*1.5,u*5);}
-  else{x.fillRect(cx-u*6,by+u*4+type,u*2.2,u*1.4);x.fillRect(cx+u*3.8,by+u*4-type,u*2.2,u*1.4);}
-  // 頭（画面）
-  const hx=cx-u*5, hy=by-u*9+(st==="lose"?u*1:0);
-  x.fillStyle="#5a4590"; x.fillRect(hx-u*.6,hy-u*.6,u*11.2,u*9.2);
-  x.fillStyle="#07040d"; x.fillRect(hx,hy,u*10,u*8);
+  x.fillStyle=C.shell2;
+  if(st==="win"){x.fillRect(cx-u*(bw/2+2),by-u*3,u*1.5,u*5);x.fillRect(cx+u*(bw/2+.5),by-u*3,u*1.5,u*5);}
+  else{x.fillRect(cx-u*(bw/2+2),by+u*4+type,u*2.2,u*1.4);x.fillRect(cx+u*(bw/2-.2),by+u*4-type,u*2.2,u*1.4);}
+  // Lv3：マフラー
+  if(lv>=3){x.fillStyle=COIN[p];x.fillRect(cx-u*(bw/2+.4),by+u*.4,u*(bw+.8),u*1.3);
+    const fl=Math.sin(t*4)*u*.6;x.fillRect(cx+u*(bw/2-1.5),by+u*1.5,u*1.3,u*3+fl);x.fillStyle="rgba(0,0,0,.25)";x.fillRect(cx-u*(bw/2+.4),by+u*1.2,u*(bw+.8),u*.5);}
+  // 頭
+  const hw=C.hw, hh=C.hh, hx=cx-u*hw/2, hy=by-u*hh-u*.4+(st==="lose"?u:0);
+  x.fillStyle=C.shell2;
+  if(C.head==="round"){rr(x,hx-u*.6,hy-u*.6,u*(hw+1.2),u*(hh+1.2),u*3.8);x.fill();x.fillStyle="#07040d";rr(x,hx,hy,u*hw,u*hh,u*3.2);x.fill();}
+  else if(C.head==="tall"){x.fillRect(hx-u*.6,hy-u*.6,u*(hw+1.2),u*(hh+1.2));x.fillStyle=C.shell;x.fillRect(hx-u*.6,hy+u*hh-u*.2,u*(hw+1.2),u*.8);x.fillStyle="#07040d";x.fillRect(hx,hy,u*hw,u*hh);}
+  else{x.fillRect(hx-u*.7,hy-u*.7,u*(hw+1.4),u*(hh+1.4));x.fillStyle=C.shell;x.fillRect(hx-u*1.6,hy+u*2.5,u*1,u*3.2);x.fillRect(hx+u*hw+u*.6,hy+u*2.5,u*1,u*3.2);x.fillStyle="#07040d";x.fillRect(hx,hy,u*hw,u*hh);}
   // アンテナ
-  x.fillStyle="#5a4590"; x.fillRect(cx-u*.4,hy-u*3,u*.8,u*2.4);
-  x.fillStyle=st==="sleep"?"#333":COIN[p]; x.shadowColor=COIN[p]; x.shadowBlur=st==="sleep"?0:10;
-  x.fillRect(cx-u*.9,hy-u*4,u*1.8,u*1.4); x.shadowBlur=0;
+  const on=st!=="sleep"; x.shadowColor=COIN[p]; x.shadowBlur=on?10:0;
+  if(C.ant==="single"){x.fillStyle=C.shell2;x.fillRect(cx-u*.4,hy-u*3,u*.8,u*2.4);x.fillStyle=on?COIN[p]:"#333";x.fillRect(cx-u*1,hy-u*4.2,u*2,u*1.6);}
+  else if(C.ant==="diamond"){x.fillStyle=C.shell2;x.fillRect(cx-u*.35,hy-u*2.6,u*.7,u*2);x.fillStyle=on?COIN[p]:"#333";const dy=hy-u*4.3+Math.sin(t*2)*u*.3;
+    x.beginPath();x.moveTo(cx,dy-u*1.4);x.lineTo(cx+u*1,dy);x.lineTo(cx,dy+u*1.4);x.lineTo(cx-u*1,dy);x.closePath();x.fill();}
+  else{[-1,1].forEach(sd=>{const ax=cx+sd*u*2.6,wig=Math.sin(t*3+sd)*u*.3;x.fillStyle=C.shell2;x.fillRect(ax-u*.3,hy-u*2.6,u*.6,u*2);
+    x.fillStyle=on?COIN[p]:"#333";x.beginPath();x.arc(ax+wig,hy-u*3.2,u*.8,0,7);x.fill();});}
+  x.shadowBlur=0;
   // 顔
   let f=FACE[st]||FACE.watch; if(st==="watch"&&(t%4)<.15)f=FACE.blink;
   const look=(st==="watch"||st==="hold")?Math.round(Math.sin(t*.37)*1.2):0;
-  const fc=st==="lose"?"#ff5577":st==="win"?"#ffc65c":COIN[p];
+  const fc=st==="lose"?"#ff5577":st==="win"?"#ffc65c":COIN[p], fx=cx-u*4, fy=hy+(hh-8)*u/2;
   x.fillStyle=fc; x.shadowColor=fc; x.shadowBlur=6;
-  for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(f[r][c]==="1")x.fillRect(hx+u*(1+c+(r<3?look*.5:0)),hy+u*r*.95+u*.3,u*.92,u*.85);
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(f[r][c]==="1")x.fillRect(fx+u*(c+(r<3?look*.5:0)),fy+u*r*.95+u*.3,u*.92,u*.85);
   x.shadowBlur=0;
-  // 名札
-  x.fillStyle=COIN[p]; x.font=`bold ${Math.max(10,u*2.2)}px ui-monospace,monospace`; x.textAlign="center";
-  x.fillText(SYM[p],cx,base+u*3.6);
+  // Lv2：ヘッドセット
+  if(lv>=2){x.strokeStyle="#1a1a22";x.lineWidth=u*.8;x.beginPath();x.arc(cx,hy+u*1.5,u*(hw/2+1.1),Math.PI*1.08,Math.PI*1.92);x.stroke();
+    x.fillStyle="#1a1a22";x.fillRect(hx-u*1.9,hy+u*1.6,u*1.5,u*3);x.fillRect(hx+u*hw+u*.4,hy+u*1.6,u*1.5,u*3);
+    x.strokeStyle=COIN[p];x.lineWidth=u*.4;x.beginPath();x.moveTo(hx-u*1.2,hy+u*4.4);x.quadraticCurveTo(hx-u*.6,hy+u*hh+u*.6,hx+u*2,hy+u*hh-u*.4);x.stroke();
+    x.fillStyle=COIN[p];x.fillRect(hx+u*1.8,hy+u*hh-u*1,u*1,u*1);}
+  // Lv5：王冠
+  if(lv>=5){const cy0=hy-u*(C.ant==="single"?5.6:4.8),cw0=u*5;x.fillStyle="#ffc65c";x.shadowColor="#ffc65c";x.shadowBlur=10;x.beginPath();
+    x.moveTo(cx-cw0/2,cy0);x.lineTo(cx-cw0/2,cy0-u*2);x.lineTo(cx-cw0/4,cy0-u*.9);x.lineTo(cx,cy0-u*2.4);x.lineTo(cx+cw0/4,cy0-u*.9);x.lineTo(cx+cw0/2,cy0-u*2);x.lineTo(cx+cw0/2,cy0);x.closePath();x.fill();x.shadowBlur=0;}
+  // 名札：名前・レベル・経験値
+  const fs=Math.max(10,u*2.1); x.font=`bold ${fs}px "Hiragino Sans",ui-monospace,sans-serif`; x.textAlign="center";
+  x.fillStyle=COIN[p]; x.fillText(`${C.name}`,cx-u*2.2,base+u*3.6);
+  x.fillStyle="#ffc65c"; x.font=`bold ${fs*.85}px ui-monospace,monospace`; x.fillText(`Lv.${lv}`,cx+u*4.4,base+u*3.6);
+  const xb=u*12; x.fillStyle="rgba(255,255,255,.1)"; x.fillRect(cx-xb/2,base+u*4.6,xb,u*.6); x.fillStyle=COIN[p]; x.fillRect(cx-xb/2,base+u*4.6,xb*xp,u*.6);
+  if(bs.streak>=2){x.font=`bold ${fs*.75}px "Hiragino Sans",sans-serif`;x.fillStyle="#ffc65c";x.fillText(`${bs.streak}連勝中`,cx,base+u*6.8);}
   // 吹き出し
   let hp="保有中"; const hpos=S.status&&S.status.positions.find(q=>q.pair===p); if(hpos&&S.shown[p])hp="保有 "+pct(S.shown[p]/hpos.entry-1,1);
   const jd=judge(p); const wt=jd?(jd.met===4?"買い時！":jd.met===3?"あと1つ…":"条件 "+jd.met+"/4"):null;
   const say={buy:"買った！",win:"利確！",lose:"損切り…",sleep:"Zzz",hold:hp,watch:wt}[st];
-  if(say){x.font=`bold ${Math.max(10,u*2)}px "Hiragino Sans",sans-serif`; const tw=x.measureText(say).width+u*2.4, bx=cx+u*6, byy=hy-u*1.5+(st==="sleep"?Math.sin(t*2)*u:0);
+  if(say){x.font=`bold ${Math.max(10,u*2)}px "Hiragino Sans",sans-serif`; const tw=x.measureText(say).width+u*2.4, bx=cx+u*(hw/2+1.5), byy=hy-u*1.5+(st==="sleep"?Math.sin(t*2)*u:0);
     x.fillStyle=st==="lose"?"rgba(255,85,119,.9)":st==="win"?"rgba(255,198,92,.95)":st==="sleep"?"rgba(154,143,176,.5)":"rgba(241,233,255,.92)";
     rr(x,bx,byy,tw,u*3.6,u*1); x.fill(); x.fillStyle="#120a1f"; x.fillText(say,bx+tw/2,byy+u*2.6);}
   x.textAlign="left";
@@ -491,6 +540,7 @@ function demoInit(){const now=Date.now();
     for(let i=180;i>0;i--){const o=v;v*=1+(Math.random()-.48)*.0018;const h=Math.max(o,v)*(1+Math.random()*.0006),l=Math.min(o,v)*(1-Math.random()*.0006);S.ohlc[p].push([now-i*60000,o,h,l,v]);}
     D.px[p]=v;S.hist[p]=S.ohlc[p].map(r=>[r[0],r[4]]);}
   let e=100000;for(let i=24*30;i>=0;i--){e*=1+(Math.sin(i/41)*.0007+(Math.random()-.47)*.003);D.hist.push([now-i*36e5,e]);}D.eq=e;D.mstart=D.hist[D.hist.length-1-24*10][1];
+  D.stats={btc_jpy:{trades:16,wins:12,streak:3,best_streak:5,pnl:6210},eth_jpy:{trades:10,wins:6,streak:1,best_streak:3,pnl:2830},xrp_jpy:{trades:8,wins:5,streak:0,best_streak:2,pnl:640}};
   D.pos=[{pair:"eth_jpy",amount:.07,entry:S.ohlc.eth_jpy[120][4],stop:S.ohlc.eth_jpy[120][4]*.982}];
   D.trades=[{ts:now-170*60000,pair:"btc_jpy",side:"buy",price:S.ohlc.btc_jpy[10][4],reason:"トレンド買い",pnl:null},
     {ts:now-95*60000,pair:"btc_jpy",side:"sell",price:S.ohlc.btc_jpy[85][4],reason:"トレンド終了",pnl:612},
@@ -504,12 +554,12 @@ function demoMarket(){const now=Date.now(),t={};
 function demoStatus(){D.t++;const now=Date.now();
   if(D.t%5===0){const p=PAIRS[(D.t/5)%3|0],held=D.pos.find(q=>q.pair===p);
     if(held){const px=D.px[p],pnl=(px-held.entry)*held.amount,win=pnl>=0;
-      D.trades.push({ts:now,pair:p,side:"sell",price:px,reason:win?"トレンド終了":"損切り",pnl:Math.round(pnl)});D.pos=D.pos.filter(q=>q!==held);D.eq+=pnl;}
+      D.trades.push({ts:now,pair:p,side:"sell",price:px,reason:win?"トレンド終了":"損切り",pnl:Math.round(pnl)});const bs=D.stats[p];bs.trades++;if(pnl>0){bs.wins++;bs.streak++;}else bs.streak=0;D.pos=D.pos.filter(q=>q!==held);D.eq+=pnl;}
     else{D.trades.push({ts:now,pair:p,side:"buy",price:D.px[p],reason:"トレンド買い",pnl:null});D.pos.push({pair:p,amount:30000/D.px[p],entry:D.px[p],stop:D.px[p]*.985});}}
   const un=D.pos.reduce((s,q)=>s+(D.px[q.pair]-q.entry)*q.amount,0),eq=D.eq+un,start=D.mstart;
   D.hist.push([now,eq]);
   applyStatus({mode:"paper",equity:eq,month_return:eq/start-1,target:.05,max_loss:.2,total_start_equity:100000,halted:false,defensive:eq/start-1>=.05,
-    positions:D.pos.map(q=>({...q})),trades:D.trades.slice(),equity_history:D.hist,
+    positions:D.pos.map(q=>({...q})),trades:D.trades.slice(),bot_stats:JSON.parse(JSON.stringify(D.stats)),equity_history:D.hist,
     monthly:{"2026-08":{start:100000,end:97800},"2026-09":{start:97800,end:103900},"2026-10":{start:103900,end:115200},"2026-11":{start:D.mstart,end:eq}}});}
 
 /* ================= 起動 ================= */

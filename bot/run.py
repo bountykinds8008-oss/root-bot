@@ -39,6 +39,7 @@ def save(state, summary, market):
                       for p, v in state["positions"].items()],
         "equity_history": state["equity_history"], "trades": state["trades"][-100:],
         "monthly": state["monthly"], "log": state["log"][-30:],
+        "bot_stats": state.get("bot_stats", {}),
     }
     STATUS.write_text(json.dumps(status, ensure_ascii=False))
 

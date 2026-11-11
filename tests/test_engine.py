@@ -61,6 +61,13 @@ class EngineTest(unittest.TestCase):
         self.assertGreater(s["end"], 0)
         self.assertGreaterEqual(st["cash"], 0)
 
+    def test_bot_stats_match_trades(self):
+        st = run(data_from(lambda i, p, r: p * math.exp(r.gauss(0.0003, 0.006)), seeds=(4, 5, 6)))
+        for pair, v in st.get("bot_stats", {}).items():
+            sells = [t for t in st["trades"] if t["pair"] == pair and t["side"] == "sell"]
+            self.assertEqual(v["trades"], len(sells))
+            self.assertEqual(v["wins"], sum(1 for t in sells if t["pnl"] > 0))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -124,6 +124,17 @@ def _sell(state, broker, pair, market, now_ms, reason, fill=None):
     amt, px, fee = broker.sell(state, pair, pos["amount"], px_ref)
     pnl = (px - pos["entry"]) * amt - fee
     _trade(state, now_ms, pair, "sell", amt, px, fee, pnl, reason)
+    # キャラ育成用の成績（画面のレベル表示に使う）
+    st = state.setdefault("bot_stats", {}).setdefault(
+        pair, {"trades": 0, "wins": 0, "streak": 0, "best_streak": 0, "pnl": 0.0})
+    st["trades"] += 1
+    st["pnl"] = round(st["pnl"] + pnl, 2)
+    if pnl > 0:
+        st["wins"] += 1
+        st["streak"] += 1
+        st["best_streak"] = max(st["best_streak"], st["streak"])
+    else:
+        st["streak"] = 0
     bars = market[pair]["bars"]
     state["cooldown_until"][pair] = bars[-1][5] + C.COOLDOWN_BARS * 3600_000
 
