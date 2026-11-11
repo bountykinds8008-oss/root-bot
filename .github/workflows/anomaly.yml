@@ -1,0 +1,29 @@
+name: 小さな穴探し（アノマリー調査）
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: [".github/anomaly-request"]
+
+permissions:
+  contents: write
+
+jobs:
+  anomaly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 調査（2023〜今年の1時間足）
+        run: python -m bot.anomaly 2023 2026
+      - name: 結果を保存
+        run: |
+          git config user.name "root-bot"
+          git config user.email "root-bot@users.noreply.github.com"
+          git add data/anomaly.json
+          git diff --cached --quiet || git commit -m "anomaly result" -q
+          git pull --rebase -q && git push -q
