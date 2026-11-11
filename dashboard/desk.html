@@ -58,6 +58,12 @@
   .kpi div{background:rgba(255,255,255,.03);border:1px solid rgba(139,92,255,.2);border-radius:5px;padding:5px 7px}
   .kpi small{display:block;font-size:9px;color:var(--mute);letter-spacing:.06em}
   .kpi b{font-size:14px}
+  .fun{border:1px solid rgba(139,92,255,.25);border-radius:6px;padding:7px 8px;margin-bottom:8px;background:rgba(255,255,255,.02)}
+  .fun .t{font-size:9px;letter-spacing:.08em;color:var(--edge2);margin-bottom:5px;display:flex;justify-content:space-between}
+  .fun .st{display:grid;grid-template-columns:auto 1fr auto;gap:3px 7px;align-items:center;font-size:11px}
+  .fun .fbar{height:5px;border-radius:3px;background:#24193a;overflow:hidden} .fun .fbar i{display:block;height:100%}
+  .fun .why{margin-top:6px;font-size:10px;color:var(--mute);line-height:1.6}
+  .fun .why b{color:var(--text);font-weight:600}
   /* テレビ表示（C） */
   body.tv{cursor:none}
   body.tv #desk{grid-template-columns:1.25fr 1fr;grid-template-rows:auto auto 1fr;grid-template-areas:"bar bar" "tiles tiles" "room candle"}
@@ -103,7 +109,7 @@
     .tiles>.tile:nth-child(6){order:3} .tiles>.tile:nth-child(3),.tiles>.tile:nth-child(4),.tiles>.tile:nth-child(5){order:4}
     #desk{position:static;padding:max(8px,env(safe-area-inset-top)) 7px 10px;gap:6px;
       grid-template-columns:1fr;
-      grid-template-rows:auto auto calc(41dvh) calc(37dvh) 300px 200px 230px;
+      grid-template-rows:auto auto calc(41dvh) calc(37dvh) 300px 200px 360px;
       grid-template-areas:"bar" "tiles" "room" "candle" "feed" "equity" "month"}
     .bar .logo{font-size:12px;letter-spacing:.16em} .bar .logo small{display:none} .bar .rec{margin-left:6px}
     .bar .tb{padding:2px 7px;font-size:10px} .bar #bTv{display:none} .clock{font-size:10px}
@@ -139,7 +145,7 @@
   <div class="pane room"><h3>BOT ROOM<span id="roomSub">ビット・イーサ・リプル</span></h3><div class="fill" style="inset:22px 0 0"><canvas id="cvR"></canvas></div></div>
   <div class="pane feed"><h3>実況<span>LOG</span></h3><div class="list"><div class="sec">保有中</div><div id="pos"></div><div class="sec">売買</div><div id="log"></div></div></div>
   <div class="pane equity"><h3>資産の推移<span id="eqSpan">EQUITY</span></h3><div class="fill"><canvas id="cvE"></canvas></div></div>
-  <div class="pane month"><h3>成績<span>目標 +5%</span></h3><div class="list" style="mask-image:none"><div class="kpi" id="kpi"></div><div id="mon"></div></div></div>
+  <div class="pane month"><h3>成績<span>目標 +5%</span></h3><div class="list" style="mask-image:none"><div class="kpi" id="kpi"></div><div class="fun" id="fun"></div><div id="mon"></div></div></div>
 </div>
 <div class="banner" id="ban"><b id="banK"></b><div class="num" id="banV"></div><small id="banS"></small></div>
 <div class="demo" id="demo" hidden>サンプル映像（実データではありません）</div>
@@ -224,7 +230,7 @@ function applyStatus(d){
     mo.state=d.halted?"sleep":d.positions.some(x=>x.pair===p)?"hold":"watch";}
   // 月
   const ms=Object.entries(d.monthly||{}).filter(([,v])=>v.start&&v.end).slice(-6).reverse();
-  renderKpi(d);
+  renderKpi(d); renderFunnel(d);
   $("mon").innerHTML="<table>"+ms.map(([k,v])=>{const r=v.end/v.start-1,w=Math.min(60,Math.abs(r)*600);
     return`<tr><td>${k}</td><td><span class="mbar" style="width:${w}px;background:${r>=0?"var(--up)":"var(--down)"}"></span><span class="num ${cls(r)}">${pct(r,1)}</span>${r>=d.target?" ★":""}</td></tr>`}).join("")+"</table>";
 }
@@ -242,6 +248,16 @@ function renderKpi(d){
     cell("停止ラインまで",stop==null?"—":yen(stop),stop!=null&&stop<(ms||0)*.05?"down":"")+
     cell("勝率（通算）",tr?Math.round(w/tr*100)+"%":"—")+
     cell("今月の決済",`${mt.length}回 <span class="${cls(mpnl)}" style="font-size:11px">${mt.length?(mpnl>=0?"+":"")+yen(mpnl):""}</span>`);
+}
+const FNAME={spread:"板が薄い",surge:"急騰しすぎ",volatile:"値動きが荒い",volume:"出来高不足",chase:"直前に価格が逃げた",pause:"連敗中の休憩",funds:"資金不足"};
+function renderFunnel(d){
+  const f=(d.funnel||{})[d.month]; if(!f||!f.checked){$("fun").innerHTML=`<div class="t">今月のふるい<span>SAFETY FILTER</span></div><div class="why">まだ判定がありません</div>`;return;}
+  const fl=Object.values(f.filtered||{}).reduce((a,b)=>a+b,0), rate=f.entered/f.checked;
+  const row=(k,n,c)=>`<span>${k}</span><div class="fbar"><i style="width:${Math.max(2,n/f.checked*100)}%;background:${c}"></i></div><b class="num">${n.toLocaleString()}</b>`;
+  const top=Object.entries(f.filtered||{}).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,n])=>`<b>${FNAME[k]||k}</b> ${n}`).join("・");
+  $("fun").innerHTML=`<div class="t">今月のふるい<span>通過率 ${(rate*100).toFixed(rate<.01?2:1)}%</span></div>
+   <div class="st">${row("判定",f.checked,"#8b5cff")}${row("条件そろわず",f.no_setup,"#4a3f66")}${row("安全のため見送り",fl,"#ff5577")}${row("実行",f.entered,"#3ff2b5")}</div>
+   ${top?`<div class="why">見送りの理由：${top}</div>`:""}`;
 }
 let banT;
 let AC=null, SOUND=store.get("rb_snd")==="1";
@@ -479,7 +495,8 @@ function drawBot(x,p,cx,base,u,now,i){
   if(bs.streak>=2){x.font=`bold ${fs*.75}px "Hiragino Sans",sans-serif`;x.fillStyle="#ffc65c";x.fillText(`${bs.streak}連勝中`,cx,base+u*6.8);}
   // 吹き出し
   let hp="保有中"; const hpos=S.status&&S.status.positions.find(q=>q.pair===p); if(hpos&&S.shown[p])hp="保有 "+pct(S.shown[p]/hpos.entry-1,1);
-  const jd=judge(p); const wt=jd?(jd.met===4?"買い時！":jd.met===3?"あと1つ…":"条件 "+jd.met+"/4"):null;
+  const jd=judge(p); let wt=jd?(jd.met===4?"買い時！":jd.met===3?"あと1つ…":"条件 "+jd.met+"/4"):null;
+  const rj=S.status&&S.status.last_reject&&S.status.last_reject[p]; if(rj&&Date.now()-rj.ts<36e5)wt="見送り："+rj.reason.split("（")[0];
   const say={buy:"買った！",win:"利確！",lose:"損切り…",sleep:"Zzz",hold:hp,watch:wt}[st];
   if(say){x.font=`bold ${Math.max(10,u*2)}px "Hiragino Sans",sans-serif`; const tw=x.measureText(say).width+u*2.4, bx=S.narrowR?cx-tw/2:cx+u*(hw/2+1.5), byy=(S.narrowR?base-u*38:hy-u*1.5)+(st==="sleep"?Math.sin(t*2)*u:0);
     x.fillStyle=st==="lose"?"rgba(255,85,119,.9)":st==="win"?"rgba(255,198,92,.95)":st==="sleep"?"rgba(154,143,176,.5)":"rgba(241,233,255,.92)";
@@ -649,7 +666,9 @@ function demoStatus(){D.t++;const now=Date.now();
   const un=D.pos.reduce((s,q)=>s+(D.px[q.pair]-q.entry)*q.amount,0),eq=D.eq+un,start=D.mstart;
   D.hist.push([now,eq]);
   applyStatus({mode:"paper",month:new Date(now+9*36e5).toISOString().slice(0,7),month_start_equity:start,equity:eq,month_return:eq/start-1,target:.05,max_loss:.2,total_start_equity:100000,halted:false,defensive:eq/start-1>=.05,
-    positions:D.pos.map(q=>({...q})),trades:D.trades.slice(),bot_stats:JSON.parse(JSON.stringify(D.stats)),equity_history:D.hist,
+    positions:D.pos.map(q=>({...q})),trades:D.trades.slice(),bot_stats:JSON.parse(JSON.stringify(D.stats)),
+    funnel:{[new Date(now+9*36e5).toISOString().slice(0,7)]:{checked:642+D.t,no_setup:571+D.t,filtered:{surge:19,volatile:12,spread:6,volume:0,chase:5,pause:3},entered:26}},
+    last_reject:{xrp_jpy:{ts:now-12*6e4,reason:"急騰しすぎ（飛び乗り防止）"}},equity_history:D.hist,
     monthly:{"2026-08":{start:100000,end:97800},"2026-09":{start:97800,end:103900},"2026-10":{start:103900,end:115200},[new Date(now+9*36e5).toISOString().slice(0,7)]:{start:D.mstart,end:eq}}});}
 
 /* ================= 起動 ================= */

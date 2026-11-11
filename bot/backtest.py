@@ -71,7 +71,18 @@ def summarize(state):
         "months": rows,
         "months_hit_target": sum(r["return"] >= C.MONTHLY_TARGET for r in rows),
         "months_negative": sum(r["return"] < 0 for r in rows),
+        "funnel": _sum_funnel(state.get("funnel", {})),
     }
+
+
+def _sum_funnel(f):
+    out = {"checked": 0, "no_setup": 0, "filtered": {}, "entered": 0}
+    for v in f.values():
+        for k in ("checked", "no_setup", "entered"):
+            out[k] += v[k]
+        for r, n in v["filtered"].items():
+            out["filtered"][r] = out["filtered"].get(r, 0) + n
+    return out
 
 
 def main():

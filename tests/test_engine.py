@@ -68,6 +68,22 @@ class EngineTest(unittest.TestCase):
             self.assertEqual(v["trades"], len(sells))
             self.assertEqual(v["wins"], sum(1 for t in sells if t["pnl"] > 0))
 
+    def test_filters_reject_surge_and_record_funnel(self):
+        from bot.engine import risk_filter, signal
+        base = series(lambda i, p, r: p * 1.002, 120, 15_000_000)
+        surge = base[:-4] + [(b[0], b[1] * 1.03 ** (k + 1), b[2], b[3] * 1.03 ** (k + 1), 1.0, b[5])
+                             for k, b in enumerate(base[-4:])]
+        sig = signal(surge)
+        m = {"bid": sig["close"], "ask": sig["close"]}
+        self.assertEqual(risk_filter(surge, sig, m, {}), "surge")
+        m2 = {"bid": sig["close"] * 0.99, "ask": sig["close"] * 1.01}
+        self.assertEqual(risk_filter(base, signal(base), m2, {}), "spread")
+
+    def test_funnel_counts_add_up(self):
+        st = run(data_from(lambda i, p, r: p * math.exp(r.gauss(0.0004, 0.006)), seeds=(11, 12, 13)))
+        for mk, f in st.get("funnel", {}).items():
+            self.assertEqual(f["checked"], f["no_setup"] + sum(f["filtered"].values()) + f["entered"], mk)
+
 
 if __name__ == "__main__":
     unittest.main()

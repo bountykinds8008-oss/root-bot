@@ -42,6 +42,7 @@ def save(state, summary, market):
         "equity_history": state["equity_history"], "trades": state["trades"][-100:],
         "monthly": state["monthly"], "log": state["log"][-30:],
         "bot_stats": state.get("bot_stats", {}),
+        "funnel": state.get("funnel", {}), "last_reject": state.get("last_reject", {}),
     }
     STATUS.write_text(json.dumps(status, ensure_ascii=False))
     # 公開用コピー：前回から約1時間たったとき、または売買があったときだけ更新

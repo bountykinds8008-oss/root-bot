@@ -35,6 +35,43 @@ def signal(bars):
     return {"entry": entry, "exit_trend": exit_trend, "atr": a[-1], "close": c}
 
 
+# ---------------- 安全フィルター ----------------
+FILTER_NAMES = {
+    "spread": "板が薄い（スプレッド広い）",
+    "surge": "急騰しすぎ（飛び乗り防止）",
+    "volatile": "値動きが荒すぎ",
+    "volume": "出来高不足",
+    "chase": "直前に価格が逃げた",
+    "pause": "連敗中の休憩",
+    "funds": "資金不足",
+}
+
+
+def risk_filter(bars, sig, m, pair_stats):
+    """買い候補を危険度でふるいにかける。見送る理由のキー（無ければ None）を返す。"""
+    c = sig["close"]
+    if pair_stats.get("loss_streak", 0) >= C.LOSS_STREAK_PAUSE and \
+            bars[-1][5] < pair_stats.get("pause_until", 0):
+        return "pause"
+    mid = (m["bid"] + m["ask"]) / 2
+    if mid and (m["ask"] - m["bid"]) / mid > C.MAX_SPREAD:
+        return "spread"
+    if len(bars) > 4 and c / bars[-5][3] - 1 > C.SURGE_4H:
+        return "surge"
+    if sig["atr"] / c > C.MAX_ATR_PCT:
+        return "volatile"
+    if sum(b[4] * b[3] for b in bars[-24:]) < C.MIN_VOL_JPY_24H:
+        return "volume"
+    if m["ask"] > c * (1 + C.CHASE_LIMIT):   # 二次確認：注文直前の価格
+        return "chase"
+    return None
+
+
+def _funnel(state, mk):
+    return state.setdefault("funnel", {}).setdefault(
+        mk, {"checked": 0, "no_setup": 0, "filtered": {}, "entered": 0})
+
+
 # ---------------- 1回分の処理 ----------------
 def step(state, broker, market, now_ms):
     """market[pair] = {"bars": 確定足, "bid": 売れる価格, "ask": 買える価格, "low": 前回からの安値}"""
@@ -96,11 +133,23 @@ def step(state, broker, market, now_ms):
             pos["stop"] = max(pos["stop"], pos["high"] - C.TRAIL_ATR * sig["atr"])
             if sig["exit_trend"]:
                 _sell(state, broker, pair, market, now_ms, "トレンド終了")
-        elif (not halted and sig["entry"]
-              and state["cooldown_until"].get(pair, 0) < last_ts):
+        elif not halted and state["cooldown_until"].get(pair, 0) < last_ts:
+            fn = _funnel(state, mk)
+            fn["checked"] += 1
+            if not sig["entry"]:
+                fn["no_setup"] += 1
+                continue
+            reason = risk_filter(m["bars"], sig, m, state.get("bot_stats", {}).get(pair, {}))
+            if reason:
+                fn["filtered"][reason] = fn["filtered"].get(reason, 0) + 1
+                state.setdefault("last_reject", {})[pair] = {"ts": now_ms, "reason": FILTER_NAMES[reason]}
+                log.append(f"{pair} 買い条件はそろったが見送り：{FILTER_NAMES[reason]}")
+                continue
             budget = equity * C.ALLOC_PER_PAIR * size_mult
             budget = min(budget, broker.cash(state) * 0.995)
-            if budget >= broker.min_order_jpy(pair):
+            if budget < broker.min_order_jpy(pair):
+                fn["filtered"]["funds"] = fn["filtered"].get("funds", 0) + 1
+            else:
                 amt, px, fee = broker.buy(state, pair, budget, m["ask"])
                 if amt > 0:
                     state["positions"][pair] = {
@@ -108,6 +157,7 @@ def step(state, broker, market, now_ms):
                         "stop": px - C.STOP_ATR * sig["atr"]}
                     _trade(state, now_ms, pair, "buy", amt, px, fee, None,
                            "守りモード買い" if defensive else "トレンド買い")
+                    fn["entered"] += 1
 
     equity = broker.equity(state, market)
     state["equity_history"].append([now_ms, round(equity, 2)])
@@ -133,8 +183,12 @@ def _sell(state, broker, pair, market, now_ms, reason, fill=None):
         st["wins"] += 1
         st["streak"] += 1
         st["best_streak"] = max(st["best_streak"], st["streak"])
+        st["loss_streak"] = 0
     else:
         st["streak"] = 0
+        st["loss_streak"] = st.get("loss_streak", 0) + 1
+        if st["loss_streak"] >= C.LOSS_STREAK_PAUSE:
+            st["pause_until"] = market[pair]["bars"][-1][5] + C.PAUSE_BARS * 3600_000
     bars = market[pair]["bars"]
     state["cooldown_until"][pair] = bars[-1][5] + C.COOLDOWN_BARS * 3600_000
 
