@@ -70,14 +70,26 @@ class EngineTest(unittest.TestCase):
 
     def test_filters_reject_surge_and_record_funnel(self):
         from bot.engine import risk_filter, signal
-        base = series(lambda i, p, r: p * 1.002, 120, 15_000_000)
+        base = series(lambda i, p, r: p * 1.002, 200, 15_000_000)
         surge = base[:-4] + [(b[0], b[1] * 1.03 ** (k + 1), b[2], b[3] * 1.03 ** (k + 1), 1.0, b[5])
                              for k, b in enumerate(base[-4:])]
         sig = signal(surge)
         m = {"bid": sig["close"], "ask": sig["close"]}
-        self.assertEqual(risk_filter(surge, sig, m, {}), "surge")
+        C.USE_SURGE_FILTER = True
+        try:
+            self.assertEqual(risk_filter(surge, sig, m, {}), "surge")
+        finally:
+            C.USE_SURGE_FILTER = False
         m2 = {"bid": sig["close"] * 0.99, "ask": sig["close"] * 1.01}
         self.assertEqual(risk_filter(base, signal(base), m2, {}), "spread")
+
+    def test_breakout_signal(self):
+        from bot.engine import signal
+        flat = series(lambda i, p, r: p * (1 + r.gauss(0, 0.002)), 180, 1_000_000)
+        up = flat + [(flat[-1][3], flat[-1][3] * 1.2, flat[-1][3], flat[-1][3] * 1.15, 1.0, flat[-1][5] + H)]
+        self.assertTrue(signal(up)["entry"])
+        down = flat + [(flat[-1][3], flat[-1][3], flat[-1][3] * 0.8, flat[-1][3] * 0.85, 1.0, flat[-1][5] + H)]
+        self.assertTrue(signal(down)["exit_trend"])
 
     def test_funnel_counts_add_up(self):
         st = run(data_from(lambda i, p, r: p * math.exp(r.gauss(0.0004, 0.006)), seeds=(11, 12, 13)))

@@ -45,22 +45,30 @@ def ticker(pair):
     return {"buy": float(d["buy"]), "sell": float(d["sell"]), "last": float(d["last"])}
 
 
-def candles(pair, candle_type="1hour", days=5):
-    """直近 days 日分のローソク足（確定済みのみ）を古い順で返す。"""
+YEARLY = {"4hour", "8hour", "12hour", "1day", "1week", "1month"}
+DUR_MS = {"1min": 60_000, "5min": 300_000, "15min": 900_000, "30min": 1_800_000, "1hour": 3_600_000,
+          "4hour": 14_400_000, "8hour": 28_800_000, "12hour": 43_200_000, "1day": 86_400_000}
+
+
+def candles(pair, candle_type="4hour", days=5):
+    """直近のローソク足（確定済みのみ）を古い順で返す。"""
     now = datetime.now(timezone.utc)
+    if candle_type in YEARLY:
+        keys = [str(now.year - 1), str(now.year)]
+    else:
+        keys = [(now - timedelta(days=k)).strftime("%Y%m%d") for k in range(days - 1, -1, -1)]
     out = {}
-    for k in range(days - 1, -1, -1):
-        day = (now - timedelta(days=k)).strftime("%Y%m%d")
+    for key in keys:
         try:
-            d = _http(urllib.request.Request(f"{PUBLIC}/{pair}/candlestick/{candle_type}/{day}"))
+            d = _http(urllib.request.Request(f"{PUBLIC}/{pair}/candlestick/{candle_type}/{key}"))
         except BitbankError:
-            continue  # 当日分がまだ無い等
+            continue  # 年明け直後・日付が変わった直後などは無いことがある
         for row in d["candlestick"][0]["ohlcv"]:
             o, h, l, c, v, ts = row
             out[int(ts)] = (float(o), float(h), float(l), float(c), float(v), int(ts))
     bars = [out[t] for t in sorted(out)]
-    # 最後の足は形成中なので除外（1時間足想定）
-    if bars and bars[-1][5] + 3600_000 > now.timestamp() * 1000:
+    # 最後の足が形成中なら除外
+    if bars and bars[-1][5] + DUR_MS.get(candle_type, 3_600_000) > now.timestamp() * 1000:
         bars = bars[:-1]
     return bars
 

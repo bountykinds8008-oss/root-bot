@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta, timezone
 
 from . import config as C
-from .indicators import atr, ema, rsi
+from .indicators import atr
 
 JST = timezone(timedelta(hours=9))
 
@@ -20,19 +20,21 @@ def new_state(start_equity, mode):
     }
 
 
-# ---------------- シグナル ----------------
+# ---------------- シグナル（v2：4時間足ブレイクアウト） ----------------
 def signal(bars):
-    """確定足のリストから {entry: bool, exit_trend: bool, atr: float} を返す。"""
-    if len(bars) < C.EMA_SLOW + 6:
+    """確定足のリストから売買判断を返す（research.py の検証と同じルール）。"""
+    if len(bars) < C.DON_IN + 2:
         return None
-    closes = [b[3] for b in bars]
-    ef, es = ema(closes, C.EMA_FAST), ema(closes, C.EMA_SLOW)
-    r, a = rsi(closes, C.RSI_LEN), atr(bars, C.ATR_LEN)
-    c = closes[-1]
-    entry = (ef[-1] > es[-1] and c > ef[-1] and es[-1] > es[-6]
-             and C.RSI_MIN <= r[-1] <= C.RSI_MAX)
-    exit_trend = ef[-1] < es[-1]
-    return {"entry": entry, "exit_trend": exit_trend, "atr": a[-1], "close": c}
+    h = [b[1] for b in bars]; l = [b[2] for b in bars]; c = [b[3] for b in bars]
+    a = atr(bars, C.ATR_LEN)
+    hi = max(h[-C.DON_IN - 1:-1])        # 直前までの最高値（今の足は含めない）
+    lo = max(0.0, min(l[-C.DON_OUT - 1:-1]))
+    rets = [c[k] / c[k - 1] - 1 for k in range(len(c) - 30, len(c))]
+    m = sum(rets) / len(rets)
+    vol = (sum((r - m) ** 2 for r in rets) / len(rets)) ** 0.5 * (365 * C.BARS_PER_DAY) ** 0.5
+    frac = max(0.1, min(1.0, C.VOL_TARGET / vol)) if vol > 0 else 1.0
+    return {"entry": c[-1] > hi, "exit_trend": c[-1] < lo, "atr": a[-1], "close": c[-1],
+            "break_level": hi, "exit_level": lo, "size": frac, "vol": vol}
 
 
 # ---------------- 安全フィルター ----------------
@@ -50,17 +52,17 @@ FILTER_NAMES = {
 def risk_filter(bars, sig, m, pair_stats):
     """買い候補を危険度でふるいにかける。見送る理由のキー（無ければ None）を返す。"""
     c = sig["close"]
-    if pair_stats.get("loss_streak", 0) >= C.LOSS_STREAK_PAUSE and \
+    if C.USE_LOSS_PAUSE and pair_stats.get("loss_streak", 0) >= C.LOSS_STREAK_PAUSE and \
             bars[-1][5] < pair_stats.get("pause_until", 0):
         return "pause"
     mid = (m["bid"] + m["ask"]) / 2
     if mid and (m["ask"] - m["bid"]) / mid > C.MAX_SPREAD:
         return "spread"
-    if len(bars) > 4 and c / bars[-5][3] - 1 > C.SURGE_4H:
+    if C.USE_SURGE_FILTER and len(bars) > 4 and c / bars[-5][3] - 1 > C.SURGE_4H:
         return "surge"
-    if sig["atr"] / c > C.MAX_ATR_PCT:
+    if C.USE_VOLATILE_FILTER and sig["atr"] / c > C.MAX_ATR_PCT:
         return "volatile"
-    if sum(b[4] * b[3] for b in bars[-24:]) < C.MIN_VOL_JPY_24H:
+    if sum(b[4] * b[3] for b in bars[-C.BARS_PER_DAY:]) < C.MIN_VOL_JPY_24H:
         return "volume"
     if m["ask"] > c * (1 + C.CHASE_LIMIT):   # 二次確認：注文直前の価格
         return "chase"
@@ -145,7 +147,7 @@ def step(state, broker, market, now_ms):
                 state.setdefault("last_reject", {})[pair] = {"ts": now_ms, "reason": FILTER_NAMES[reason]}
                 log.append(f"{pair} 買い条件はそろったが見送り：{FILTER_NAMES[reason]}")
                 continue
-            budget = equity * C.ALLOC_PER_PAIR * size_mult
+            budget = equity * C.ALLOC_PER_PAIR * size_mult * sig["size"]
             budget = min(budget, broker.cash(state) * 0.995)
             if budget < broker.min_order_jpy(pair):
                 fn["filtered"]["funds"] = fn["filtered"].get("funds", 0) + 1
@@ -188,9 +190,9 @@ def _sell(state, broker, pair, market, now_ms, reason, fill=None):
         st["streak"] = 0
         st["loss_streak"] = st.get("loss_streak", 0) + 1
         if st["loss_streak"] >= C.LOSS_STREAK_PAUSE:
-            st["pause_until"] = market[pair]["bars"][-1][5] + C.PAUSE_BARS * 3600_000
+            st["pause_until"] = market[pair]["bars"][-1][5] + C.PAUSE_BARS * C.BAR_MS
     bars = market[pair]["bars"]
-    state["cooldown_until"][pair] = bars[-1][5] + C.COOLDOWN_BARS * 3600_000
+    state["cooldown_until"][pair] = bars[-1][5] + C.COOLDOWN_BARS * C.BAR_MS
 
 
 def _close_all(state, broker, market, now_ms, reason):

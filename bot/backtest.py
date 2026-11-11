@@ -17,19 +17,17 @@ from .engine import new_state, step
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def fetch_hourly(pair, start, end):
-    bars, d = {}, start
-    while d <= end:
+def fetch_bars(pair, start, end):
+    bars = {}
+    for y in range(start.year, end.year + 1):
         try:
-            raw = bitbank._http(bitbank.urllib.request.Request(
-                f"{bitbank.PUBLIC}/{pair}/candlestick/1hour/{d.strftime('%Y%m%d')}"))
-            for o, h, l, c, v, ts in raw["candlestick"][0]["ohlcv"]:
-                bars[int(ts)] = (float(o), float(h), float(l), float(c), float(v), int(ts))
+            for r in bitbank.candles_year(pair, C.CANDLE, y):
+                bars[r[5]] = r
         except Exception as e:
-            print(f"[skip] {pair} {d}: {e}", file=sys.stderr)
-        d += timedelta(days=1)
-        time.sleep(0.12)  # レート制限に配慮
-    return [bars[t] for t in sorted(bars)]
+            print(f"[skip] {pair} {y}: {e}", file=sys.stderr)
+        time.sleep(0.2)
+    s0 = int(time.mktime(start.timetuple()) * 1000)
+    return [bars[t] for t in sorted(bars) if t >= s0 - 200 * C.BAR_MS]
 
 
 def run(data, start_jpy=C.PAPER_START_JPY):
@@ -45,8 +43,8 @@ def run(data, start_jpy=C.PAPER_START_JPY):
             if i is None:
                 continue
             b = bs[i]
-            market[p] = {"bars": bs[max(0, i - 120): i + 1], "bid": b[3], "ask": b[3], "low": b[2]}
-        step(state, broker, market, ts + 3600_000)
+            market[p] = {"bars": bs[max(0, i - 200): i + 1], "bid": b[3], "ask": b[3], "low": b[2]}
+        step(state, broker, market, ts + C.BAR_MS)
     return state
 
 
@@ -89,7 +87,7 @@ def main():
     y0 = int(sys.argv[1]) if len(sys.argv) > 1 else date.today().year - 1
     y1 = int(sys.argv[2]) if len(sys.argv) > 2 else date.today().year
     start, end = date(y0, 1, 1), min(date(y1, 12, 31), date.today() - timedelta(days=1))
-    data = {p: fetch_hourly(p, start, end) for p in C.PAIRS}
+    data = {p: fetch_bars(p, start, end) for p in C.PAIRS}
     state = run(data)
     result = summarize(state)
     result["period"] = f"{start} 〜 {end}"

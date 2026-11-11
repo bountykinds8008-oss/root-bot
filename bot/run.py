@@ -73,7 +73,7 @@ def main():
     for pair in C.PAIRS:
         try:
             t = bitbank.ticker(pair)
-            bars = bitbank.candles(pair, C.CANDLE, days=5)
+            bars = bitbank.candles(pair, C.CANDLE)
         except Exception as e:  # 1ペアの失敗で全体を止めない
             print(f"[warn] {pair}: {e}", file=sys.stderr)
             continue
