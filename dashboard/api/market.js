@@ -21,7 +21,7 @@ export default async function handler(req, res) {
       tickers[p] = { last: +t.last, buy: +t.buy, sell: +t.sell, open: +t.open,
                      high: +t.high, low: +t.low, vol: +t.vol, ts: t.timestamp };
     }));
-    let candles = null;
+    let candles = null, ohlc = null;
     const pair = PAIRS.includes(req.query.pair) ? req.query.pair : null;
     if (pair) {
       const now = new Date(), y = new Date(now.getTime() - 864e5);
@@ -32,9 +32,11 @@ export default async function handler(req, res) {
           rows.push(...c.candlestick[0].ohlcv);
         } catch (_) { /* 日付が変わった直後などは当日分が無い */ }
       }
-      candles = rows.slice(-180).map(r => [r[5], +r[3]]); // [時刻, 終値]
+      const last = rows.slice(-180);
+      candles = last.map(r => [r[5], +r[3]]); // [時刻, 終値]
+      ohlc = last.map(r => [r[5], +r[0], +r[1], +r[2], +r[3]]); // [時刻, 始, 高, 安, 終]
     }
-    res.status(200).json({ tickers, candles, pair });
+    res.status(200).json({ tickers, candles, ohlc, pair });
   } catch (e) {
     res.status(502).json({ error: String(e.message || e) });
   }

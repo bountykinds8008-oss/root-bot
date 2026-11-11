@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0612">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>ROOT BOT DESK</title>
+<style>
+  :root{--bg:#0a0612;--pane:#120c1d;--edge:#ff5fc7;--edge2:#8b5cff;--text:#f1e9ff;--mute:#9a8fb0;
+        --up:#3ff2b5;--down:#ff5577;--gold:#ffc65c;--cyan:#55d6ff}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--text);overflow:hidden;
+    font:12px/1.35 ui-monospace,"SF Mono",Menlo,"Hiragino Sans","Noto Sans JP",monospace;-webkit-font-smoothing:antialiased}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px);mix-blend-mode:multiply}
+  .num{font-variant-numeric:tabular-nums}
+  .up{color:var(--up)} .down{color:var(--down)} .gold{color:var(--gold)}
+  #desk{position:fixed;inset:0;padding:max(8px,env(safe-area-inset-top)) 8px 8px;display:grid;gap:7px;
+    grid-template-columns:1fr 2fr 1fr;grid-template-rows:auto auto 1.7fr 1fr;
+    grid-template-areas:"bar bar bar" "tiles tiles tiles" "candle room feed" "equity equity month"}
+  .pane{position:relative;background:linear-gradient(180deg,rgba(255,95,199,.05),rgba(139,92,255,.03)),var(--pane);
+    border:1px solid rgba(255,95,199,.45);border-radius:6px;overflow:hidden;
+    box-shadow:0 0 0 1px rgba(139,92,255,.15) inset,0 0 18px rgba(255,95,199,.12)}
+  .pane>h3{font-size:10px;letter-spacing:.14em;color:var(--edge);padding:6px 9px 0;font-weight:700;text-transform:uppercase;
+    display:flex;justify-content:space-between}
+  .pane>h3 span{color:var(--mute);font-weight:400;letter-spacing:.04em;text-transform:none}
+  canvas{display:block;width:100%;height:100%}
+  .fill{position:absolute;inset:24px 6px 6px}
+  /* 最上段 */
+  .bar{grid-area:bar;display:flex;align-items:center;justify-content:space-between;padding:0 4px}
+  .logo{font-weight:800;letter-spacing:.24em;font-size:13px;color:#fff;text-shadow:0 0 8px var(--edge),0 0 18px var(--edge2)}
+  .logo small{font-size:10px;letter-spacing:.1em;color:var(--edge);margin-left:8px;text-shadow:none}
+  .rec{display:inline-flex;align-items:center;gap:5px;color:var(--down);font-size:10px;letter-spacing:.12em;margin-left:10px}
+  .rec i{width:7px;height:7px;border-radius:50%;background:var(--down);box-shadow:0 0 8px var(--down);animation:bl 1s infinite}
+  @keyframes bl{50%{opacity:.2}}
+  .clock{color:var(--mute);font-size:11px}
+  /* タイル */
+  .tiles{grid-area:tiles;display:grid;grid-template-columns:repeat(6,1fr);gap:7px}
+  .tile{padding:7px 9px}
+  .tile .k{font-size:9px;letter-spacing:.12em;color:var(--mute);text-transform:uppercase;display:flex;justify-content:space-between}
+  .tile .v{font-size:17px;font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tile .s{font-size:10px;margin-top:1px}
+  .tile.flash-up{animation:fu .7s}.tile.flash-down{animation:fd .7s}
+  @keyframes fu{from{background:rgba(63,242,181,.22)}}@keyframes fd{from{background:rgba(255,85,119,.22)}}
+  .bar2{height:4px;border-radius:9px;background:#24193a;margin-top:6px;position:relative;overflow:hidden}
+  .bar2 i{position:absolute;top:0;bottom:0;left:0;background:linear-gradient(90deg,var(--edge2),var(--edge));border-radius:9px;transition:width 1s}
+  .candle{grid-area:candle} .room{grid-area:room} .feed{grid-area:feed} .equity{grid-area:equity} .strip{grid-area:strip} .month{grid-area:month}
+  /* 実況 */
+  .list{position:absolute;inset:26px 8px 6px;overflow:hidden;mask-image:linear-gradient(#000 80%,transparent)}
+  .row{display:grid;grid-template-columns:34px 1fr auto;gap:6px;padding:5px 0;border-bottom:1px dashed rgba(154,143,176,.18);animation:in .5s}
+  @keyframes in{from{opacity:0;transform:translateY(-8px)}}
+  .tag{font-size:9px;font-weight:800;text-align:center;border-radius:3px;padding:2px 0;height:16px}
+  .tag.buy{background:rgba(63,242,181,.16);color:var(--up)} .tag.sell{background:rgba(255,85,119,.16);color:var(--down)}
+  .row small{display:block;color:var(--mute);font-size:10px}
+  .row .r{text-align:right}
+  .pos{padding:5px 0;border-bottom:1px dashed rgba(154,143,176,.18);display:flex;justify-content:space-between}
+  .sec{font-size:9px;letter-spacing:.14em;color:var(--edge2);margin:8px 0 2px}
+  /* 月 */
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  td{padding:4px 2px;border-bottom:1px dashed rgba(154,143,176,.15);text-align:right}
+  td:first-child{text-align:left;color:var(--mute)}
+  .mbar{display:inline-block;height:6px;border-radius:2px;vertical-align:middle;margin-right:5px}
+  /* 売買通知 */
+  .banner{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%) scale(.85);opacity:0;z-index:40;pointer-events:none;
+    padding:14px 28px;border-radius:8px;text-align:center;background:rgba(10,6,18,.92);border:1px solid var(--edge);
+    box-shadow:0 0 30px rgba(255,95,199,.45);transition:all .45s cubic-bezier(.2,.9,.3,1.3)}
+  .banner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  .banner b{display:block;font-size:12px;letter-spacing:.3em} .banner div{font-size:24px;font-weight:800;margin-top:4px}
+  .banner small{color:var(--mute);font-size:11px}
+  .demo{position:fixed;right:10px;bottom:10px;font-size:10px;color:var(--gold);background:rgba(255,198,92,.12);padding:3px 8px;border-radius:4px;z-index:45}
+  .login{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:60}
+  .login.show{display:flex} .login form{width:280px;text-align:center}
+  .login input{width:100%;padding:13px;border-radius:8px;border:1px solid var(--edge);background:var(--pane);color:var(--text);font:inherit;font-size:16px;margin:14px 0 10px}
+  .login button{width:100%;padding:13px;border-radius:8px;border:none;background:var(--edge);color:#1a0716;font:inherit;font-weight:800}
+  /* 縦長（iPhone） */
+  @media (max-aspect-ratio: 1/1){
+    html,body{overflow:auto} #desk{position:static;min-height:100%;
+      grid-template-columns:1fr 1fr;grid-template-rows:auto auto 300px 230px 260px 170px 150px;
+      grid-template-areas:"bar bar" "tiles tiles" "room room" "candle candle" "feed feed" "equity equity" "month month"}
+    .tiles{grid-template-columns:repeat(3,1fr)} .tile .v{font-size:14px}
+  }
+</style>
+</head>
+<body>
+<div id="desk">
+  <div class="bar"><div class="logo">ROOT BOT DESK<small id="mode">PAPER</small><span class="rec"><i></i>LIVE</span></div><div class="clock num" id="clock"></div></div>
+  <div class="tiles">
+    <div class="pane tile"><div class="k">総資産<span>EQUITY</span></div><div class="v num" id="tEq">—</div><div class="s num" id="tEqS">—</div></div>
+    <div class="pane tile"><div class="k">今月<span>MONTH</span></div><div class="v num" id="tM">—</div><div class="bar2"><i id="tMb"></i></div></div>
+    <div class="pane tile" id="tile_btc_jpy"><div class="k">BTC/JPY</div><div class="v num" id="v_btc_jpy">—</div><div class="s num" id="s_btc_jpy">—</div></div>
+    <div class="pane tile" id="tile_eth_jpy"><div class="k">ETH/JPY</div><div class="v num" id="v_eth_jpy">—</div><div class="s num" id="s_eth_jpy">—</div></div>
+    <div class="pane tile" id="tile_xrp_jpy"><div class="k">XRP/JPY</div><div class="v num" id="v_xrp_jpy">—</div><div class="s num" id="s_xrp_jpy">—</div></div>
+    <div class="pane tile"><div class="k">状態<span>STATUS</span></div><div class="v" id="tSt">—</div><div class="s" id="tSt2">—</div></div>
+  </div>
+  <div class="pane candle"><h3 id="cH">CHART<span>1分足</span></h3><div class="fill"><canvas id="cvC"></canvas></div></div>
+  <div class="pane room"><h3>BOT ROOM<span id="roomSub">3体が監視中</span></h3><div class="fill" style="inset:22px 0 0"><canvas id="cvR"></canvas></div></div>
+  <div class="pane feed"><h3>実況<span>LOG</span></h3><div class="list"><div class="sec">保有中</div><div id="pos"></div><div class="sec">売買</div><div id="log"></div></div></div>
+  <div class="pane equity"><h3>資産の推移<span id="eqSpan">EQUITY</span></h3><div class="fill"><canvas id="cvE"></canvas></div></div>
+  <div class="pane month"><h3>月ごと<span>目標 +5%</span></h3><div class="list" id="mon" style="mask-image:none"></div></div>
+</div>
+<div class="banner" id="ban"><b id="banK"></b><div class="num" id="banV"></div><small id="banS"></small></div>
+<div class="demo" id="demo" hidden>サンプル映像（実データではありません）</div>
+<div class="login" id="login"><form id="lf"><div class="logo">ROOT BOT DESK</div><input id="pw" type="password" placeholder="合言葉"><button>開く</button></form></div>
+
+<script>
+/* ================= 基本 ================= */
+const PAIRS=["btc_jpy","eth_jpy","xrp_jpy"], SYM={btc_jpy:"BTC",eth_jpy:"ETH",xrp_jpy:"XRP"};
+const NAME={btc_jpy:"ビットコイン",eth_jpy:"イーサリアム",xrp_jpy:"リップル"};
+const COIN={btc_jpy:"#ff9f2e",eth_jpy:"#8b9cff",xrp_jpy:"#55d6ff"};
+const DEMO=new URLSearchParams(location.search).has("demo")||location.protocol==="file:";
+const $=id=>document.getElementById(id);
+const store={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
+const fmt=(v,p)=>v==null?"—":"¥"+(p==="xrp_jpy"?v.toFixed(3):Math.round(v).toLocaleString("ja-JP"));
+const yen=v=>(v<0?"−¥":"¥")+Math.abs(Math.round(v)).toLocaleString("ja-JP");
+const pct=(v,d=2)=>v==null||isNaN(v)?"—":(v>=0?"+":"")+(v*100).toFixed(d)+"%";
+const cls=v=>v>0?"up":v<0?"down":"";
+const hm=ts=>new Date(ts).toLocaleTimeString("ja-JP",{timeZone:"Asia/Tokyo",hour:"2-digit",minute:"2-digit"});
+const S={tick:{},shown:{},ohlc:{},hist:{},status:null,seen:0,eqShown:0,focus:0,focusAt:0,mood:{}};
+PAIRS.forEach(p=>{S.mood[p]={state:"watch",until:0};S.hist[p]=[];});
+
+function canvas(id){const c=$(id),x=c.getContext("2d");return{c,x,fit(){const r=c.getBoundingClientRect(),d=Math.min(2,devicePixelRatio||1);
+  if(c.width!==Math.round(r.width*d)||c.height!==Math.round(r.height*d)){c.width=Math.round(r.width*d);c.height=Math.round(r.height*d);}
+  x.setTransform(d,0,0,d,0,0);return[r.width,r.height];}};}
+const CC=canvas("cvC"),CR=canvas("cvR"),CE=canvas("cvE");
+
+/* ================= データ ================= */
+async function loadMarket(full){
+  if(DEMO)return demoMarket();
+  const p=PAIRS[S.focus];
+  try{const d=await(await fetch(`/api/market${full?"?pair="+p:""}`,{cache:"no-store"})).json();
+    if(d.tickers)applyTickers(d.tickers);
+    if(d.ohlc&&d.pair){S.ohlc[d.pair]=d.ohlc;S.hist[d.pair]=d.ohlc.map(r=>[r[0],r[4]]);}
+  }catch(e){}
+}
+async function loadAllCandles(){ if(DEMO)return; for(const p of PAIRS){try{const d=await(await fetch(`/api/market?pair=${p}`)).json();
+  if(d.ohlc){S.ohlc[p]=d.ohlc;S.hist[p]=d.ohlc.map(r=>[r[0],r[4]]);}}catch(e){}}}
+async function loadStatus(){
+  if(DEMO)return demoStatus();
+  const pass=store.get("rb_pass"); if(!pass){$("login").classList.add("show");return;}
+  try{const r=await fetch("/api/status",{headers:{"x-dash-pass":pass},cache:"no-store"});
+    if(r.status===401){$("login").classList.add("show");return;} if(r.ok)applyStatus(await r.json());}catch(e){}
+}
+$("lf").onsubmit=e=>{e.preventDefault();store.set("rb_pass",$("pw").value);$("login").classList.remove("show");loadStatus();};
+
+function applyTickers(t){
+  for(const p of PAIRS){ if(!t[p])continue;
+    const prev=S.tick[p]&&S.tick[p].last; S.tick[p]=t[p]; if(S.shown[p]==null)S.shown[p]=t[p].last;
+    if(prev!=null&&prev!==t[p].last){const el=$("tile_"+p);el.classList.remove("flash-up","flash-down");void el.offsetWidth;el.classList.add(t[p].last>prev?"flash-up":"flash-down");}
+    const ch=t[p].last/t[p].open-1; $("s_"+p).textContent="24h "+pct(ch); $("s_"+p).className="s num "+cls(ch);
+  }
+}
+
+function applyStatus(d){
+  const first=!S.status; S.status=d;
+  $("mode").textContent=d.mode==="live"?"LIVE TRADING":"PAPER";
+  const m=d.month_return,t=d.equity/d.total_start_equity-1;
+  $("tEqS").textContent="通算 "+pct(t); $("tEqS").className="s num "+cls(t);
+  $("tM").textContent=pct(m); $("tM").className="v num "+cls(m);
+  $("tMb").style.width=Math.max(0,Math.min(100,m/d.target*100))+"%";
+  $("tSt").textContent=d.halted?"停止中":d.defensive?"守り":"稼働中"; $("tSt").className="v "+(d.halted?"down":d.defensive?"gold":"up");
+  $("tSt2").textContent=d.halted?"翌月に自動再開":d.defensive?"目標達成・半分で運用":`保有 ${d.positions.length}/3`;
+  $("pos").innerHTML=d.positions.length?d.positions.map(x=>{const px=S.tick[x.pair]?S.tick[x.pair].last:x.price,r=px?px/x.entry-1:0;
+    return`<div class="pos"><span style="color:${COIN[x.pair]}">${SYM[x.pair]}</span><span class="num">${fmt(x.entry,x.pair)}</span><span class="num ${cls(r)}">${pct(r)}</span></div>`}).join(""):`<div class="pos"><span style="color:var(--mute)">なし（チャンス待ち）</span></div>`;
+  const fresh=d.trades.filter(x=>x.ts>S.seen).sort((a,b)=>a.ts-b.ts);
+  $("log").innerHTML=[...d.trades].reverse().slice(0,14).map(x=>`<div class="row"><span class="tag ${x.side}">${x.side==="buy"?"BUY":"SELL"}</span>
+    <div><span style="color:${COIN[x.pair]}">${SYM[x.pair]}</span> ${fmt(x.price,x.pair)}<small>${hm(x.ts)}・${x.reason}</small></div>
+    <div class="r num ${cls(x.pnl)}">${x.pnl!=null?(x.pnl>=0?"+":"")+yen(x.pnl):""}</div></div>`).join("");
+  if(!first)fresh.forEach(react);
+  S.seen=Math.max(S.seen,0,...d.trades.map(x=>x.ts));
+  if(first)S.eqShown=d.equity;
+  // ボットの基本状態
+  for(const p of PAIRS){const mo=S.mood[p]; if(performance.now()<mo.until)continue;
+    mo.state=d.halted?"sleep":d.positions.some(x=>x.pair===p)?"hold":"watch";}
+  // 月
+  const ms=Object.entries(d.monthly||{}).filter(([,v])=>v.start&&v.end).slice(-6).reverse();
+  $("mon").innerHTML="<table>"+ms.map(([k,v])=>{const r=v.end/v.start-1,w=Math.min(60,Math.abs(r)*600);
+    return`<tr><td>${k}</td><td><span class="mbar" style="width:${w}px;background:${r>=0?"var(--up)":"var(--down)"}"></span><span class="num ${cls(r)}">${pct(r,1)}</span>${r>=d.target?" ★":""}</td></tr>`}).join("")+"</table>";
+}
+
+let banT;
+function react(x){
+  const mo=S.mood[x.pair], now=performance.now();
+  if(x.side==="buy"){mo.state="buy";mo.until=now+3500;}
+  else{mo.state=(x.pnl||0)>=0?"win":"lose";mo.until=now+6000; if((x.pnl||0)>=0)burst(x.pair);}
+  $("banK").textContent=x.side==="buy"?"▲ BUY":"▼ SELL"; $("banK").className=x.side==="buy"?"up":"down";
+  $("banV").innerHTML=`<span style="color:${COIN[x.pair]}">${SYM[x.pair]}</span> ${fmt(x.price,x.pair)}`;
+  $("banS").innerHTML=x.reason+(x.pnl!=null?`　<span class="${cls(x.pnl)}">${x.pnl>=0?"+":""}${yen(x.pnl)}</span>`:"");
+  $("ban").classList.add("show"); clearTimeout(banT); banT=setTimeout(()=>$("ban").classList.remove("show"),3800);
+  S.focus=PAIRS.indexOf(x.pair); S.focusAt=performance.now(); loadMarket(true);
+}
+
+/* ================= ボットの部屋（オリジナルのドット絵） ================= */
+const parts=[];
+function burst(pair){const i=PAIRS.indexOf(pair);for(let k=0;k<26;k++)parts.push({pair,x:0,y:0,vx:(Math.random()-.5)*90,vy:-60-Math.random()*90,life:1.6,i});}
+// 8x8 の顔パーツ（1=光るドット）
+const FACE={
+  watch:["00000000","01100110","01100110","00000000","00000000","00111100","00000000","00000000"],
+  blink:["00000000","00000000","01100110","00000000","00000000","00111100","00000000","00000000"],
+  hold: ["00000000","01100110","01100110","00000000","01000010","00111100","00000000","00000000"],
+  buy:  ["00000000","01000010","10100101","00000000","00000000","00111100","00111100","00000000"],
+  win:  ["00000000","10000001","01000010","10000001","00000000","01111110","00111100","00000000"],
+  lose: ["00000000","00000000","11100111","00000000","00000000","00111100","01000010","00000000"],
+  sleep:["00000000","00000000","11100111","00000000","00000000","00011000","00000000","00000000"]};
+
+function drawRoom(now,dt){
+  const[W,H]=CR.fit(),x=CR.x; x.clearRect(0,0,W,H);
+  // 奥の壁
+  const g=x.createLinearGradient(0,0,0,H); g.addColorStop(0,"#1a0f2e"); g.addColorStop(.62,"#120a22"); g.addColorStop(.62,"#0d0718"); g.addColorStop(1,"#08040f");
+  x.fillStyle=g; x.fillRect(0,0,W,H);
+  // 床のパース線
+  const hz=H*.62; x.strokeStyle="rgba(255,95,199,.16)"; x.lineWidth=1;
+  for(let i=-10;i<=10;i++){x.beginPath();x.moveTo(W/2+i*W*.04,hz);x.lineTo(W/2+i*W*.22,H);x.stroke();}
+  for(let k=0;k<6;k++){const y=hz+(H-hz)*Math.pow(((k+(now/2400)%1)/6),1.7);x.beginPath();x.moveTo(0,y);x.lineTo(W,y);x.stroke();}
+  // 壁の大スクリーン（注目銘柄の価格）
+  const fp=PAIRS[S.focus], sw=Math.min(W*.46,320), sh=hz*.48, sx=W/2-sw/2, sy=hz*.12;
+  x.fillStyle="#05030a"; x.strokeStyle="rgba(139,92,255,.7)"; x.lineWidth=2; rr(x,sx,sy,sw,sh,6); x.fill(); x.stroke();
+  const hs=S.hist[fp]; if(hs&&hs.length>2){const v=hs.map(h=>h[1]).concat(S.shown[fp]||[]),lo=Math.min(...v),hi=Math.max(...v);
+    x.beginPath(); v.forEach((p,i)=>{const px=sx+8+i/(v.length-1)*(sw-16),py=sy+sh-10-(p-lo)/(hi-lo||1)*(sh-34); i?x.lineTo(px,py):x.moveTo(px,py);});
+    x.strokeStyle=COIN[fp]; x.lineWidth=1.6; x.shadowColor=COIN[fp]; x.shadowBlur=8; x.stroke(); x.shadowBlur=0;}
+  x.fillStyle="#fff"; x.font="bold 13px ui-monospace,monospace"; x.textAlign="left";
+  x.fillText(`${SYM[fp]}  ${fmt(S.shown[fp],fp)}`,sx+10,sy+18);
+  // ネオンサイン
+  x.font="bold 11px ui-monospace,monospace"; x.textAlign="right"; x.fillStyle="#ff5fc7"; x.shadowColor="#ff5fc7"; x.shadowBlur=12+Math.sin(now/300)*4;
+  x.fillText("ROOT",W-14,hz*.22); x.fillStyle="#8b5cff"; x.shadowColor="#8b5cff"; x.fillText("TRADING",W-14,hz*.22+14); x.shadowBlur=0;
+  x.textAlign="left";
+  // 3体のボット
+  const u=Math.max(3,Math.min(W/110,H/62));   // ドット1つの大きさ
+  PAIRS.forEach((p,i)=>{
+    const cx=W*(.2+i*.3), base=H*.86;
+    drawBot(x,p,cx,base,u,now,i);
+  });
+  // 紙吹雪（コイン）
+  for(let k=parts.length-1;k>=0;k--){const q=parts[k]; q.life-=dt; if(q.life<=0){parts.splice(k,1);continue;}
+    if(!q.x){q.x=W*(.2+q.i*.3);q.y=H*.86-u*22;} q.vy+=160*dt; q.x+=q.vx*dt; q.y+=q.vy*dt;
+    x.fillStyle=k%3?COIN[q.pair]:"#ffc65c"; x.globalAlpha=Math.min(1,q.life); x.fillRect(q.x,q.y,u*.9,u*.9); x.globalAlpha=1;}
+}
+
+function drawBot(x,p,cx,base,u,now,i){
+  const mo=S.mood[p], st=performance.now()<mo.until?mo.state:mo.state;
+  const t=now/1000+i*1.3;
+  let bob=Math.sin(t*2.2)*u*.35, tilt=0;
+  if(st==="win")bob=-Math.abs(Math.sin(t*7))*u*3;
+  if(st==="buy")bob=Math.sin(t*10)*u*.5;
+  if(st==="lose")bob=u*.8;
+  if(st==="sleep")bob=Math.sin(t*1.2)*u*.2+u*.5;
+  // 影
+  x.fillStyle="rgba(0,0,0,.45)"; x.beginPath(); x.ellipse(cx,base+u*.5,u*9,u*1.6,0,0,7); x.fill();
+  // 机
+  x.fillStyle="#2a1d45"; x.fillRect(cx-u*11,base-u*7,u*22,u*1.4);
+  x.fillStyle="#1b1230"; x.fillRect(cx-u*10,base-u*5.6,u*1.2,u*5.6); x.fillRect(cx+u*8.8,base-u*5.6,u*1.2,u*5.6);
+  // 机の上のモニター（裏側）＋光
+  const lit=st==="sleep"?.15:.55+Math.sin(t*3)*.1;
+  x.fillStyle=`rgba(${hex(COIN[p])},${lit*.35})`; x.beginPath(); x.ellipse(cx,base-u*15,u*8,u*6,0,0,7); x.fill();
+  // 体
+  const by=base-u*7-u*8+bob;
+  x.fillStyle="#3b2a63"; x.fillRect(cx-u*4,by+u*1,u*8,u*7);
+  x.fillStyle=COIN[p]; x.fillRect(cx-u*4,by+u*3,u*8,u*1);              // 胸のライン（担当色）
+  // 腕（キーボードを打つ）
+  const type=(st==="watch"||st==="hold"||st==="buy")?Math.sin(t*(st==="buy"?22:12))*u*.6:0;
+  const armUp=st==="win";
+  x.fillStyle="#4a3778";
+  if(armUp){x.fillRect(cx-u*6,by-u*3+bob*.2,u*1.5,u*5);x.fillRect(cx+u*4.5,by-u*3+bob*.2,u*1.5,u*5);}
+  else{x.fillRect(cx-u*6,by+u*4+type,u*2.2,u*1.4);x.fillRect(cx+u*3.8,by+u*4-type,u*2.2,u*1.4);}
+  // 頭（画面）
+  const hx=cx-u*5, hy=by-u*9+(st==="lose"?u*1:0);
+  x.fillStyle="#5a4590"; x.fillRect(hx-u*.6,hy-u*.6,u*11.2,u*9.2);
+  x.fillStyle="#07040d"; x.fillRect(hx,hy,u*10,u*8);
+  // アンテナ
+  x.fillStyle="#5a4590"; x.fillRect(cx-u*.4,hy-u*3,u*.8,u*2.4);
+  x.fillStyle=st==="sleep"?"#333":COIN[p]; x.shadowColor=COIN[p]; x.shadowBlur=st==="sleep"?0:10;
+  x.fillRect(cx-u*.9,hy-u*4,u*1.8,u*1.4); x.shadowBlur=0;
+  // 顔
+  let f=FACE[st]||FACE.watch; if(st==="watch"&&(t%4)<.15)f=FACE.blink;
+  const fc=st==="lose"?"#ff5577":st==="win"?"#ffc65c":COIN[p];
+  x.fillStyle=fc; x.shadowColor=fc; x.shadowBlur=6;
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(f[r][c]==="1")x.fillRect(hx+u*(1+c),hy+u*r*.95+u*.3,u*.92,u*.85);
+  x.shadowBlur=0;
+  // 名札
+  x.fillStyle=COIN[p]; x.font=`bold ${Math.max(10,u*2.2)}px ui-monospace,monospace`; x.textAlign="center";
+  x.fillText(SYM[p],cx,base+u*3.6);
+  // 吹き出し
+  const say={buy:"買った！",win:"利確！",lose:"損切り…",sleep:"Zzz",hold:"保有中"}[st];
+  if(say){x.font=`bold ${Math.max(10,u*2)}px "Hiragino Sans",sans-serif`; const tw=x.measureText(say).width+u*2.4, bx=cx-tw/2, byy=hy-u*8.5+(st==="sleep"?Math.sin(t*2)*u:0);
+    x.fillStyle=st==="lose"?"rgba(255,85,119,.9)":st==="win"?"rgba(255,198,92,.95)":st==="sleep"?"rgba(154,143,176,.5)":"rgba(241,233,255,.92)";
+    rr(x,bx,byy,tw,u*3.6,u*1); x.fill(); x.fillStyle="#120a1f"; x.fillText(say,cx,byy+u*2.6);}
+  x.textAlign="left";
+}
+function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath();}
+function hex(h){const n=parseInt(h.slice(1),16);return`${n>>16&255},${n>>8&255},${n&255}`;}
+
+/* ================= ローソク足 ================= */
+function drawCandles(){
+  const[W,H]=CC.fit(),x=CC.x; x.clearRect(0,0,W,H);
+  const p=PAIRS[S.focus], o=(S.ohlc[p]||[]).slice(-60);
+  $("cH").innerHTML=`<span style="color:${COIN[p]};font-weight:700;letter-spacing:.14em">${SYM[p]}/JPY</span><span>1分足・${fmt(S.shown[p],p)}</span>`;
+  if(o.length<2){x.fillStyle="#9a8fb0";x.fillText("読み込み中…",8,20);return;}
+  const live=S.shown[p], lastC=o[o.length-1].slice(); lastC[4]=live; lastC[2]=Math.max(lastC[2],live); lastC[3]=Math.min(lastC[3],live); o[o.length-1]=lastC;
+  const pos=S.status&&S.status.positions.find(q=>q.pair===p);
+  let lo=Math.min(...o.map(r=>r[3])),hi=Math.max(...o.map(r=>r[2])); const pd=(hi-lo)*.08; lo-=pd; hi+=pd;
+  const R=62, cw=(W-R)/o.length, Y=v=>(1-(v-lo)/(hi-lo))*(H-14)+4;
+  x.font="10px ui-monospace,monospace";
+  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=Y(v);x.strokeStyle="rgba(139,92,255,.12)";x.beginPath();x.moveTo(0,y);x.lineTo(W-R,y);x.stroke();x.fillStyle="#6d6385";x.fillText(fmt(v,p).replace("¥",""),W-R+4,y+3);}
+  o.forEach((r,i)=>{const[,op,h,l,c]=r,X=i*cw+cw/2,up=c>=op,col=up?"#3ff2b5":"#ff5577";
+    x.strokeStyle=col;x.beginPath();x.moveTo(X,Y(h));x.lineTo(X,Y(l));x.stroke();
+    x.fillStyle=col;x.fillRect(X-Math.max(1,cw*.32),Math.min(Y(op),Y(c)),Math.max(2,cw*.64),Math.max(1,Math.abs(Y(op)-Y(c))));});
+  if(pos&&pos.entry>lo&&pos.entry<hi){x.setLineDash([4,4]);x.strokeStyle="#ffc65c";x.beginPath();x.moveTo(0,Y(pos.entry));x.lineTo(W-R,Y(pos.entry));x.stroke();x.setLineDash([]);x.fillStyle="#ffc65c";x.fillText("買値",3,Y(pos.entry)-3);}
+  const y=Y(live); x.fillStyle=lastC[4]>=lastC[1]?"#3ff2b5":"#ff5577"; x.fillRect(W-R+1,y-8,R-2,16); x.fillStyle="#0a0612"; x.font="bold 10px ui-monospace,monospace"; x.fillText(fmt(live,p).replace("¥",""),W-R+4,y+4);
+}
+
+/* ================= 資産グラフ・3銘柄 ================= */
+function drawEquity(){
+  const[W,H]=CE.fit(),x=CE.x; x.clearRect(0,0,W,H);
+  const h=S.status?S.status.equity_history||[]:[]; if(h.length<2)return;
+  const v=h.slice(-400).map(r=>r[1]); v[v.length-1]=S.eqShown;
+  const lo=Math.min(...v),hi=Math.max(...v),Y=q=>4+(1-(q-lo)/(hi-lo||1))*(H-10),X=i=>i/(v.length-1)*W;
+  const g=x.createLinearGradient(0,0,0,H); g.addColorStop(0,"rgba(255,95,199,.35)"); g.addColorStop(1,"rgba(139,92,255,0)");
+  x.beginPath(); v.forEach((q,i)=>i?x.lineTo(X(i),Y(q)):x.moveTo(0,Y(q))); x.lineTo(W,H); x.lineTo(0,H); x.fillStyle=g; x.fill();
+  x.beginPath(); v.forEach((q,i)=>i?x.lineTo(X(i),Y(q)):x.moveTo(0,Y(q))); x.strokeStyle="#ff5fc7"; x.lineWidth=1.6; x.shadowColor="#ff5fc7"; x.shadowBlur=8; x.stroke(); x.shadowBlur=0;
+  $("eqSpan").textContent=yen(S.eqShown);
+}
+function drawStrip(){
+  const[W,H]=CS.fit(),x=CS.x; x.clearRect(0,0,W,H); const rh=H/3;
+  PAIRS.forEach((p,i)=>{const hs=S.hist[p]; const y0=i*rh;
+    x.fillStyle=COIN[p]; x.font="bold 10px ui-monospace,monospace"; x.fillText(SYM[p],2,y0+rh/2+3);
+    if(!hs||hs.length<2)return; const v=hs.map(r=>r[1]).concat(S.shown[p]); const lo=Math.min(...v),hi=Math.max(...v);
+    const ch=v[v.length-1]/v[0]-1;
+    x.beginPath(); v.forEach((q,k)=>{const px=34+k/(v.length-1)*(W-96),py=y0+rh-5-(q-lo)/(hi-lo||1)*(rh-10);k?x.lineTo(px,py):x.moveTo(px,py);});
+    x.strokeStyle=COIN[p]; x.lineWidth=1.3; x.stroke();
+    x.fillStyle=ch>=0?"#3ff2b5":"#ff5577"; x.textAlign="right"; x.fillText(pct(ch),W-2,y0+rh/2+3); x.textAlign="left";});
+}
+
+/* ================= ループ ================= */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.1,(now-last)/1000); last=now;
+  for(const p of PAIRS){ if(!S.tick[p])continue; S.shown[p]+=(S.tick[p].last-S.shown[p])*Math.min(1,dt*4); $("v_"+p).textContent=fmt(S.shown[p],p);}
+  if(S.status){S.eqShown+=(S.status.equity-S.eqShown)*Math.min(1,dt*2.5); $("tEq").textContent=yen(S.eqShown);}
+  if(now-S.focusAt>15000){S.focus=(S.focus+1)%3;S.focusAt=now;loadMarket(true);}
+  for(const p of PAIRS){const mo=S.mood[p]; if(now>mo.until&&["buy","win","lose"].includes(mo.state)&&S.status)
+    mo.state=S.status.halted?"sleep":S.status.positions.some(q=>q.pair===p)?"hold":"watch";}
+  drawRoom(now,dt); drawCandles(); drawEquity();
+  requestAnimationFrame(frame);
+}
+setInterval(()=>$("clock").textContent=new Date().toLocaleString("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",weekday:"short",hour:"2-digit",minute:"2-digit",second:"2-digit"}),1000);
+
+/* ================= サンプル映像用 ================= */
+const D={px:{btc_jpy:15320000,eth_jpy:528000,xrp_jpy:318.4},open:{},eq:118400,trades:[],pos:[],t:0,hist:[]};
+function demoInit(){const now=Date.now();
+  for(const p of PAIRS){D.open[p]=D.px[p]*(1-.012+Math.random()*.03);let v=D.px[p]*.992;S.ohlc[p]=[];
+    for(let i=180;i>0;i--){const o=v;v*=1+(Math.random()-.48)*.0018;const h=Math.max(o,v)*(1+Math.random()*.0006),l=Math.min(o,v)*(1-Math.random()*.0006);S.ohlc[p].push([now-i*60000,o,h,l,v]);}
+    D.px[p]=v;S.hist[p]=S.ohlc[p].map(r=>[r[0],r[4]]);}
+  let e=100000;for(let i=24*30;i>=0;i--){e*=1+(Math.sin(i/41)*.0007+(Math.random()-.47)*.003);D.hist.push([now-i*36e5,e]);}D.eq=e;D.mstart=D.hist[D.hist.length-1-24*10][1];
+  D.pos=[{pair:"eth_jpy",amount:.07,entry:S.ohlc.eth_jpy[120][4],stop:S.ohlc.eth_jpy[120][4]*.982}];
+  D.trades=[{ts:now-170*60000,pair:"btc_jpy",side:"buy",price:S.ohlc.btc_jpy[10][4],reason:"トレンド買い",pnl:null},
+    {ts:now-95*60000,pair:"btc_jpy",side:"sell",price:S.ohlc.btc_jpy[85][4],reason:"トレンド終了",pnl:612},
+    {ts:now-60*60000,pair:"eth_jpy",side:"buy",price:D.pos[0].entry,reason:"トレンド買い",pnl:null}];}
+function demoMarket(){const now=Date.now(),t={};
+  for(const p of PAIRS){D.px[p]*=1+(Math.random()-.485)*.0009;const o=S.ohlc[p],lc=o[o.length-1];
+    if(now-lc[0]>60000){o.push([now,lc[4],D.px[p],D.px[p],D.px[p]]);o.shift();}else{lc[2]=Math.max(lc[2],D.px[p]);lc[3]=Math.min(lc[3],D.px[p]);lc[4]=D.px[p];}
+    S.hist[p]=o.map(r=>[r[0],r[4]]); t[p]={last:D.px[p],open:D.open[p]};}
+  applyTickers(t);}
+function demoStatus(){D.t++;const now=Date.now();
+  if(D.t%5===0){const p=PAIRS[(D.t/5)%3|0],held=D.pos.find(q=>q.pair===p);
+    if(held){const px=D.px[p],pnl=(px-held.entry)*held.amount,win=pnl>=0;
+      D.trades.push({ts:now,pair:p,side:"sell",price:px,reason:win?"トレンド終了":"損切り",pnl:Math.round(pnl)});D.pos=D.pos.filter(q=>q!==held);D.eq+=pnl;}
+    else{D.trades.push({ts:now,pair:p,side:"buy",price:D.px[p],reason:"トレンド買い",pnl:null});D.pos.push({pair:p,amount:30000/D.px[p],entry:D.px[p],stop:D.px[p]*.985});}}
+  const un=D.pos.reduce((s,q)=>s+(D.px[q.pair]-q.entry)*q.amount,0),eq=D.eq+un,start=D.mstart;
+  D.hist.push([now,eq]);
+  applyStatus({mode:"paper",equity:eq,month_return:eq/start-1,target:.05,max_loss:.2,total_start_equity:100000,halted:false,defensive:eq/start-1>=.05,
+    positions:D.pos.map(q=>({...q})),trades:D.trades.slice(),equity_history:D.hist,
+    monthly:{"2026-08":{start:100000,end:97800},"2026-09":{start:97800,end:103900},"2026-10":{start:103900,end:115200},"2026-11":{start:D.mstart,end:eq}}});}
+
+/* ================= 起動 ================= */
+if(DEMO){$("demo").hidden=false;demoInit();}
+loadMarket(true); loadAllCandles(); loadStatus();
+setInterval(()=>loadMarket(false),DEMO?1000:3000);
+setInterval(()=>DEMO?0:loadAllCandles(),60000);
+setInterval(loadStatus,DEMO?3500:60000);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
