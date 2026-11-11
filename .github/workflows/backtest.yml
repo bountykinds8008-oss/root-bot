@@ -1,0 +1,35 @@
+name: 過去データで検証
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_year:
+        description: "開始年"
+        default: "2024"
+      to_year:
+        description: "終了年"
+        default: "2026"
+
+permissions:
+  contents: write
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: テスト
+        run: python -m unittest discover -s tests -t .
+      - name: 検証を実行
+        run: python -m bot.backtest ${{ inputs.from_year }} ${{ inputs.to_year }}
+      - name: 結果を保存
+        run: |
+          git config user.name "root-bot"
+          git config user.email "root-bot@users.noreply.github.com"
+          git add data/backtest.json
+          git diff --cached --quiet || git commit -m "backtest ${{ inputs.from_year }}-${{ inputs.to_year }}" -q
+          git pull --rebase -q && git push -q

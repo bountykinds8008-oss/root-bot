@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d0f12">
+<title>ROOT BOT — トレーディング画面</title>
+<style>
+  :root{
+    --bg:#0d0f12; --panel:#15181d; --line:#23272e; --text:#e9e6df; --mute:#8b8f97;
+    --gold:#c9a45c; --up:#4fb38a; --down:#d9655b; --warn:#d9a441;
+    --r:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:15px/1.55 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+       padding:env(safe-area-inset-top) 0 40px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:720px;margin:0 auto;padding:18px 16px}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .brand{font-weight:700;letter-spacing:.18em;font-size:13px;color:var(--gold)}
+  .brand small{display:block;letter-spacing:.04em;color:var(--mute);font-weight:400;font-size:11px}
+  .pill{font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid var(--line);color:var(--mute)}
+  .pill.live{color:#fff;background:var(--down);border-color:transparent}
+  .pill.paper{color:var(--gold);border-color:#4a3f2a}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:14px}
+  .label{font-size:12px;color:var(--mute);letter-spacing:.04em}
+  .big{font-size:32px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .row{display:flex;gap:12px}
+  .row>*{flex:1}
+  .num{font-variant-numeric:tabular-nums}
+  .up{color:var(--up)} .down{color:var(--down)}
+  .status{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .chip{font-size:12px;padding:4px 10px;border-radius:8px;background:#1d2128;color:var(--mute)}
+  .chip.ok{color:var(--up)} .chip.warn{color:var(--warn)} .chip.stop{color:#fff;background:var(--down)}
+  /* ゲージ */
+  .gauge{position:relative;height:10px;border-radius:99px;margin:26px 0 8px;
+         background:linear-gradient(90deg,#5a2622 0%,#2a2d33 80%,#2a2d33 80%,#24493a 100%)}
+  .gauge .zero{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--mute);left:80%}
+  .gauge .mark{position:absolute;top:50%;width:16px;height:16px;border-radius:50%;background:var(--text);
+               transform:translate(-50%,-50%);box-shadow:0 0 0 4px rgba(233,230,223,.15);transition:left .6s}
+  .gauge .tip{position:absolute;bottom:18px;transform:translateX(-50%);font-size:12px;white-space:nowrap;font-weight:600}
+  .ticks{position:relative;height:16px;font-size:11px;color:var(--mute)}
+  .ticks span{position:absolute;top:0;white-space:nowrap}
+  .ticks span:nth-child(1){left:0} .ticks span:nth-child(2){left:80%;transform:translateX(-50%)} .ticks span:nth-child(3){right:0}
+  /* グラフ */
+  svg{display:block;width:100%;height:auto}
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tab{flex:1;padding:8px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--mute);font:inherit;font-size:13px}
+  .tab.on{color:var(--text);background:#1d2128;border-color:#343a44}
+  h2{font-size:13px;color:var(--mute);font-weight:600;letter-spacing:.06em;margin-bottom:10px}
+  .list{display:flex;flex-direction:column}
+  .item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--line);gap:10px}
+  .item:first-child{border-top:none}
+  .item .l{min-width:0} .item .r{text-align:right;flex-shrink:0}
+  .sub{font-size:12px;color:var(--mute)}
+  .side{font-size:11px;padding:2px 7px;border-radius:6px;margin-right:6px}
+  .side.buy{background:#1e3a30;color:var(--up)} .side.sell{background:#3d2220;color:var(--down)}
+  .empty{color:var(--mute);font-size:13px;padding:6px 0}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  td,th{padding:8px 4px;border-top:1px solid var(--line);text-align:right}
+  th{color:var(--mute);font-weight:500;font-size:12px;border-top:none}
+  td:first-child,th:first-child{text-align:left}
+  .foot{font-size:12px;color:var(--mute);text-align:center;margin-top:10px}
+  .login{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;padding:24px}
+  .login.show{display:flex}
+  .login form{width:100%;max-width:320px;text-align:center}
+  .login input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-size:16px;margin:16px 0 10px}
+  .login button{width:100%;padding:14px;border-radius:12px;border:none;background:var(--gold);color:#1a1408;font:inherit;font-weight:700}
+  .err{color:var(--down);font-size:13px;min-height:20px}
+  .demo{background:#2a2414;color:var(--gold);font-size:12px;text-align:center;padding:6px;border-radius:10px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">ROOT BOT<small>bitbank 自動売買</small></div>
+    <span id="mode" class="pill">—</span>
+  </header>
+  <div id="demo" class="demo" hidden>サンプル表示（実データではありません）</div>
+
+  <section class="card">
+    <div class="label">総資産</div>
+    <div class="big num" id="equity">—</div>
+    <div class="row" style="margin-top:8px">
+      <div><div class="label">今月の損益</div><div class="num" id="mret" style="font-size:20px;font-weight:700">—</div></div>
+      <div><div class="label">通算</div><div class="num" id="tret" style="font-size:20px;font-weight:700">—</div></div>
+    </div>
+    <div class="gauge" id="gauge"><div class="zero"></div><div class="mark" id="mark"><div class="tip" id="tip"></div></div></div>
+    <div class="ticks"><span>−20% 停止</span><span>0</span><span>+5%</span></div>
+    <div class="status" id="status"></div>
+  </section>
+
+  <section class="card">
+    <div class="tabs">
+      <button class="tab on" data-r="7">7日</button><button class="tab" data-r="30">30日</button><button class="tab" data-r="0">全期間</button>
+    </div>
+    <div id="chart"></div>
+  </section>
+
+  <section class="card"><h2>保有中</h2><div class="list" id="positions"></div></section>
+  <section class="card"><h2>取引履歴</h2><div class="list" id="trades"></div></section>
+  <section class="card"><h2>月ごとの成績</h2><div id="monthly"></div></section>
+  <section class="card" id="btCard" hidden><h2>過去データでの検証</h2><div id="bt"></div></section>
+  <section class="card"><h2>ボットのメモ</h2><div class="list" id="log"></div></section>
+  <div class="foot" id="updated"></div>
+</div>
+
+<div class="login" id="login">
+  <form id="loginForm">
+    <div class="brand" style="font-size:15px">ROOT BOT</div>
+    <input id="pass" type="password" placeholder="合言葉" autocomplete="current-password">
+    <div class="err" id="err"></div>
+    <button>開く</button>
+  </form>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const NAMES = {btc_jpy:"ビットコイン", eth_jpy:"イーサリアム", xrp_jpy:"リップル"};
+const yen = v => v == null ? "—" : "¥" + Math.round(v).toLocaleString("ja-JP");
+const pct = (v, d=1) => v == null ? "—" : (v >= 0 ? "+" : "") + (v*100).toFixed(d) + "%";
+const cls = v => v > 0 ? "up" : v < 0 ? "down" : "";
+const jst = ts => new Date(ts).toLocaleString("ja-JP", {timeZone:"Asia/Tokyo", month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"});
+const store = { get(k){ try { return localStorage.getItem(k) } catch { return null } },
+                set(k,v){ try { localStorage.setItem(k,v) } catch {} } };
+let DATA = null, RANGE = 7;
+
+async function api(file, pass){
+  const r = await fetch("/api/status" + (file ? "?file=" + file : ""), {headers:{"x-dash-pass":pass}, cache:"no-store"});
+  if (r.status === 401) throw new Error("auth");
+  if (!r.ok) throw new Error("http " + r.status);
+  return r.json();
+}
+
+async function load(){
+  const demo = new URLSearchParams(location.search).has("demo") || location.protocol === "file:";
+  if (demo) { $("demo").hidden = false; DATA = sampleData(); render(DATA); renderBT(sampleBT()); return; }
+  const pass = store.get("rb_pass");
+  if (!pass) { $("login").classList.add("show"); return; }
+  try {
+    DATA = await api("", pass); render(DATA);
+    api("backtest", pass).then(renderBT).catch(()=>{});
+  } catch (e) {
+    if (e.message === "auth") { $("login").classList.add("show"); $("err").textContent = pass ? "合言葉が違います" : ""; }
+    else $("updated").textContent = "まだデータがありません（初回の実行待ち）";
+  }
+}
+
+$("loginForm").onsubmit = e => { e.preventDefault(); store.set("rb_pass", $("pass").value); $("login").classList.remove("show"); load(); };
+document.querySelectorAll(".tab").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("on")); b.classList.add("on");
+  RANGE = +b.dataset.r; if (DATA) chart(DATA.equity_history);
+});
+
+function render(d){
+  $("mode").textContent = d.mode === "live" ? "本番運用" : "仮想売買";
+  $("mode").className = "pill " + d.mode;
+  $("equity").textContent = yen(d.equity);
+  const m = d.month_return, t = d.equity / d.total_start_equity - 1;
+  $("mret").textContent = pct(m, 2); $("mret").className = "num " + cls(m);
+  $("tret").textContent = pct(t, 2); $("tret").className = "num " + cls(t);
+  // ゲージ：-20%〜+5%（0は80%の位置）。範囲外は端に張り付き
+  const lo = -d.max_loss, hi = d.target, pos = Math.max(0, Math.min(1, (m - lo) / (hi - lo)));
+  $("mark").style.left = (pos*100) + "%"; $("tip").textContent = pct(m, 2); $("tip").className = "tip " + cls(m);
+  const st = [];
+  if (d.halted) st.push(["stop", "今月は停止中（翌月に自動再開）"]);
+  else st.push(["ok", "稼働中"]);
+  if (d.defensive) st.push(["warn", "目標達成 → 守りモード"]);
+  st.push(["", `保有 ${d.positions.length} / ${3}`]);
+  $("status").innerHTML = st.map(([c, s]) => `<span class="chip ${c}">${s}</span>`).join("");
+
+  $("positions").innerHTML = d.positions.length ? d.positions.map(p => {
+    const r = p.price ? p.price / p.entry - 1 : null;
+    return `<div class="item"><div class="l"><div>${NAMES[p.pair] || p.pair}</div>
+      <div class="sub num">買値 ${yen(p.entry)}・損切り ${yen(p.stop)}</div></div>
+      <div class="r num"><div class="${cls(r)}">${pct(r, 2)}</div><div class="sub">${yen(p.price * p.amount)}</div></div></div>`;
+  }).join("") : `<div class="empty">いまは何も持っていません（チャンス待ち）</div>`;
+
+  const tr = [...d.trades].reverse().slice(0, 30);
+  $("trades").innerHTML = tr.length ? tr.map(x => `<div class="item"><div class="l">
+      <div><span class="side ${x.side}">${x.side === "buy" ? "買" : "売"}</span>${NAMES[x.pair] || x.pair}</div>
+      <div class="sub">${jst(x.ts)}・${x.reason}</div></div>
+      <div class="r num"><div>${yen(x.price)}</div>${x.pnl != null ? `<div class="sub ${cls(x.pnl)}">${x.pnl >= 0 ? "+" : ""}${yen(x.pnl).replace("¥-","−¥")}</div>` : ""}</div></div>`).join("")
+    : `<div class="empty">まだ取引はありません</div>`;
+
+  const ms = Object.entries(d.monthly).filter(([,v]) => v.start && v.end).reverse();
+  $("monthly").innerHTML = ms.length ? `<table><tr><th>月</th><th>月初</th><th>月末/現在</th><th>損益</th></tr>` +
+    ms.map(([k, v]) => { const r = v.end / v.start - 1;
+      return `<tr><td>${k.replace("-", "年")}月</td><td class="num">${yen(v.start)}</td><td class="num">${yen(v.end)}</td>
+      <td class="num ${cls(r)}">${pct(r)}${r >= d.target ? " ✓" : ""}</td></tr>`; }).join("") + `</table>` : `<div class="empty">—</div>`;
+
+  $("log").innerHTML = d.log && d.log.length ? [...d.log].reverse().slice(0, 10).map(([ts, s]) =>
+    `<div class="item"><div class="l">${s}</div><div class="r sub">${jst(ts)}</div></div>`).join("") : `<div class="empty">特になし</div>`;
+  $("updated").textContent = "最終更新 " + jst(d.updated_at) + "（15分ごとに更新）";
+  chart(d.equity_history);
+}
+
+function chart(hist){
+  const now = hist.length ? hist[hist.length-1][0] : Date.now();
+  const pts = RANGE ? hist.filter(([t]) => t >= now - RANGE*864e5) : hist;
+  if (pts.length < 2) { $("chart").innerHTML = `<div class="empty">データが貯まるとグラフが表示されます</div>`; return; }
+  const W = 400, H = 210, P = {l: 4, r: 4, t: 16, b: 24};
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const x0 = xs[0], x1 = xs[xs.length-1], ymin = Math.min(...ys), ymax = Math.max(...ys), pad = (ymax - ymin) * .12 || ymax * .01;
+  const X = t => P.l + (t - x0) / (x1 - x0 || 1) * (W - P.l - P.r);
+  const Y = v => P.t + (1 - (v - (ymin - pad)) / ((ymax + pad) - (ymin - pad))) * (H - P.t - P.b);
+  const line = pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + "," + Y(p[1]).toFixed(1)).join("");
+  const area = line + `L${X(x1)},${H-P.b}L${X(x0)},${H-P.b}Z`;
+  const up = ys[ys.length-1] >= ys[0], col = up ? "var(--up)" : "var(--down)";
+  const start = ys[0];
+  $("chart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="資産の推移">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${up ? "#4fb38a" : "#d9655b"}" stop-opacity=".28"/><stop offset="1" stop-color="#0d0f12" stop-opacity="0"/></linearGradient></defs>
+    <line x1="${P.l}" x2="${W-P.r}" y1="${Y(start)}" y2="${Y(start)}" stroke="#343a44" stroke-dasharray="3 4"/>
+    <path d="${area}" fill="url(#g)"/><path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="${X(x1)}" cy="${Y(ys[ys.length-1])}" r="4" fill="${col}"/>
+    <text x="${P.l}" y="${H-6}" fill="#8b8f97" font-size="11">${jst(x0)}</text>
+    <text x="${W-P.r}" y="${H-6}" fill="#8b8f97" font-size="11" text-anchor="end">${jst(x1)}</text>
+    <text x="${W-P.r}" y="${P.t}" fill="#8b8f97" font-size="11" text-anchor="end">最高 ${yen(ymax)}</text></svg>`;
+}
+
+function renderBT(b){
+  if (!b || !b.months) return;
+  $("btCard").hidden = false;
+  $("bt").innerHTML = `<div class="sub" style="margin-bottom:10px">${b.period}・開始 ${yen(b.start)}</div>
+    <div class="row" style="margin-bottom:12px">
+      <div><div class="label">通算</div><div class="num ${cls(b.total_return)}" style="font-size:18px;font-weight:700">${pct(b.total_return)}</div></div>
+      <div><div class="label">最大の落ち込み</div><div class="num down" style="font-size:18px;font-weight:700">${pct(b.max_drawdown)}</div></div>
+      <div><div class="label">勝率</div><div class="num" style="font-size:18px;font-weight:700">${b.win_rate == null ? "—" : Math.round(b.win_rate*100) + "%"}</div></div>
+    </div>
+    <div class="sub">目標(+5%)達成 ${b.months_hit_target} / ${b.months.length} か月・マイナス月 ${b.months_negative} か月・取引 ${b.trades} 回</div>`;
+}
+
+/* ---- サンプル（?demo=1 のときだけ） ---- */
+function sampleData(){
+  const now = Date.now(), h = [], H = 36e5; let e = 100000;
+  for (let i = 24*40; i >= 0; i--) { e *= 1 + (Math.sin(i/37)*0.0009 + (Math.random()-.47)*0.004); h.push([now - i*H, Math.round(e)]); }
+  const ms = new Date(now).toISOString().slice(0,7);
+  const start = h[h.length - 1 - 24*10][1];
+  return {updated_at: now, mode: "paper", equity: e, month: ms, month_start_equity: start, month_return: e/start - 1,
+    target: .05, max_loss: .2, halted: false, defensive: e/start - 1 >= .05, total_start_equity: 100000,
+    positions: [{pair:"eth_jpy", amount: .06, entry: 520000, stop: 498000, price: 531200}],
+    equity_history: h,
+    trades: [{ts: now-50*H, pair:"btc_jpy", side:"buy", price: 15210000, reason:"トレンド買い", pnl:null},
+             {ts: now-31*H, pair:"btc_jpy", side:"sell", price: 15480000, reason:"トレンド終了", pnl: 540},
+             {ts: now-12*H, pair:"xrp_jpy", side:"buy", price: 312, reason:"トレンド買い", pnl:null},
+             {ts: now-6*H, pair:"xrp_jpy", side:"sell", price: 305, reason:"損切り", pnl: -760},
+             {ts: now-3*H, pair:"eth_jpy", side:"buy", price: 520000, reason:"トレンド買い", pnl:null}],
+    monthly: {"2026-09": {start: 100000, end: 103900}, "2026-10": {start: 103900, end: start}, [ms]: {start, end: e}},
+    log: [[now-6*H, "リップルを損切り（想定内）"], [now-3*H, "イーサリアムを購入"]]};
+}
+function sampleBT(){ return {period:"サンプル", start:100000, total_return:.083, max_drawdown:-.112, win_rate:.44, trades:58,
+  months_hit_target:3, months_negative:5, months:Array(12).fill(0)}; }
+
+load(); setInterval(() => { if (DATA && !new URLSearchParams(location.search).has("demo")) load(); }, 5*60*1000);
+</script>
+</body>
+</html>
