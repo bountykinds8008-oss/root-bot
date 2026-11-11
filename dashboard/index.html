@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d0f12">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<meta name="apple-mobile-web-app-title" content="ROOT BOT">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>ROOT BOT — トレーディング画面</title>
 <style>
   :root{
@@ -252,5 +259,6 @@ function sampleBT(){ return {period:"サンプル", start:100000, total_return:.
 
 load(); setInterval(() => { if (DATA && !new URLSearchParams(location.search).has("demo")) load(); }, 5*60*1000);
 </script>
+<script>if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"))navigator.serviceWorker.register("/sw.js").catch(()=>{});</script>
 </body>
 </html>

@@ -4,7 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0612">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<meta name="apple-mobile-web-app-title" content="ROOT BOT">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>ROOT BOT DESK</title>
 <style>
   :root{--bg:#0a0612;--pane:#120c1d;--edge:#ff5fc7;--edge2:#8b5cff;--text:#f1e9ff;--mute:#9a8fb0;
@@ -109,6 +115,13 @@
     .fill{inset:21px 4px 4px}
     .banner div{font-size:20px}
   }
+  .a2hs{position:fixed;left:10px;right:10px;bottom:max(12px,env(safe-area-inset-bottom));z-index:70;display:none;
+    background:rgba(18,12,29,.96);border:1px solid var(--edge);border-radius:14px;padding:12px 14px;box-shadow:0 0 30px rgba(255,95,199,.35);
+    font:13px/1.5 -apple-system,"Hiragino Sans",sans-serif;animation:in .5s}
+  .a2hs.show{display:flex;gap:12px;align-items:center}
+  .a2hs img{width:46px;height:46px;border-radius:11px;flex-shrink:0}
+  .a2hs b{color:#fff} .a2hs .x{margin-left:auto;background:none;border:none;color:var(--mute);font-size:20px;padding:0 4px}
+  .a2hs .sh{display:inline-block;border:1px solid var(--mute);border-radius:4px;padding:0 4px;font-size:11px}
 </style>
 </head>
 <body>
@@ -132,6 +145,9 @@
 <div class="demo" id="demo" hidden>サンプル映像（実データではありません）</div>
 <div class="login" id="login"><form id="lf"><div class="logo">ROOT BOT DESK</div><input id="pw" type="password" placeholder="合言葉"><button>開く</button></form></div>
 
+<div class="a2hs" id="a2hs"><img src="/icons/apple-touch-icon.png" alt="">
+  <div><b>アプリとして使う</b><br>下の <span class="sh">共有 ⬆︎</span> →「ホーム画面に追加」で、全画面のアプリになります</div>
+  <button class="x" id="a2hsX" aria-label="閉じる">×</button></div>
 <script>
 /* ================= 基本 ================= */
 const PAIRS=["btc_jpy","eth_jpy","xrp_jpy"], SYM={btc_jpy:"BTC",eth_jpy:"ETH",xrp_jpy:"XRP"};
@@ -643,6 +659,13 @@ setInterval(()=>loadMarket(false),DEMO?1000:3000);
 setInterval(()=>DEMO?0:loadAllCandles(),60000);
 setInterval(loadStatus,DEMO?3500:60000);
 requestAnimationFrame(frame);
+
+/* ================= ホーム画面に追加の案内（iPhoneのSafariだけ） ================= */
+(()=>{const ios=/iPhone|iPad|iPod/.test(navigator.userAgent), standalone=navigator.standalone||matchMedia("(display-mode: standalone)").matches;
+  if(ios&&!standalone&&store.get("rb_a2hs")!=="0"&&!DEMO)setTimeout(()=>$("a2hs").classList.add("show"),2500);
+  $("a2hsX").onclick=()=>{$("a2hs").classList.remove("show");store.set("rb_a2hs","0");};
+  if(standalone)document.body.classList.add("app");})();
 </script>
+<script>if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"))navigator.serviceWorker.register("/sw.js").catch(()=>{});</script>
 </body>
 </html>
