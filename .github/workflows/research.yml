@@ -1,0 +1,29 @@
+name: 作戦の比較研究
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: [".github/research-request"]
+
+permissions:
+  contents: write
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 比較研究（2021〜今年）
+        run: python -m bot.research 2021 2026
+      - name: 結果を保存
+        run: |
+          git config user.name "root-bot"
+          git config user.email "root-bot@users.noreply.github.com"
+          git add data/research.json
+          git diff --cached --quiet || git commit -m "research result" -q
+          git pull --rebase -q && git push -q
