@@ -45,6 +45,21 @@
   @keyframes fu{from{background:rgba(63,242,181,.22)}}@keyframes fd{from{background:rgba(255,85,119,.22)}}
   .bar2{height:4px;border-radius:9px;background:#24193a;margin-top:6px;position:relative;overflow:hidden}
   .bar2 i{position:absolute;top:0;bottom:0;left:0;background:linear-gradient(90deg,var(--edge2),var(--edge));border-radius:9px;transition:width 1s}
+  .tb{font:inherit;font-size:11px;background:rgba(255,95,199,.08);border:1px solid rgba(255,95,199,.4);color:var(--text);border-radius:6px;padding:3px 9px;cursor:pointer}
+  .tb.on{background:var(--edge);color:#1a0716;font-weight:700}
+  /* 成績（D） */
+  .kpi{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+  .kpi div{background:rgba(255,255,255,.03);border:1px solid rgba(139,92,255,.2);border-radius:5px;padding:5px 7px}
+  .kpi small{display:block;font-size:9px;color:var(--mute);letter-spacing:.06em}
+  .kpi b{font-size:14px}
+  /* テレビ表示（C） */
+  body.tv{cursor:none}
+  body.tv #desk{grid-template-columns:1.25fr 1fr;grid-template-rows:auto auto 1fr;grid-template-areas:"bar bar" "tiles tiles" "room candle"}
+  body.tv .feed,body.tv .equity,body.tv .month{display:none}
+  body.tv .tile .v{font-size:min(3.4vw,46px)} body.tv .tile .k{font-size:min(1.2vw,15px)} body.tv .tile .s{font-size:min(1.3vw,16px)}
+  body.tv .tile{padding:min(1vw,14px) min(1.2vw,16px)} body.tv .logo{font-size:min(1.6vw,22px)} body.tv .clock{font-size:min(1.5vw,20px)}
+  body.tv .pane>h3{font-size:min(1.1vw,14px)}
+  body.tv .banner{transform:translate(-50%,-50%) scale(1.6)} body.tv .banner:not(.show){transform:translate(-50%,-50%) scale(1.3)}
   .tfb{font:inherit;font-size:10px;background:none;border:1px solid rgba(139,92,255,.35);color:var(--mute);border-radius:4px;padding:1px 6px;margin-left:4px;cursor:pointer}
   .tfb.on{color:#fff;border-color:var(--edge);background:rgba(255,95,199,.15)}
   .candle{grid-area:candle} .room{grid-area:room} .feed{grid-area:feed} .equity{grid-area:equity} .strip{grid-area:strip} .month{grid-area:month}
@@ -86,7 +101,7 @@
 </head>
 <body>
 <div id="desk">
-  <div class="bar"><div class="logo">ROOT BOT DESK<small id="mode">PAPER</small><span class="rec"><i></i>LIVE</span></div><div class="clock num" id="clock"></div></div>
+  <div class="bar"><div class="logo">ROOT BOT DESK<small id="mode">PAPER</small><span class="rec"><i></i>LIVE</span></div><div style="display:flex;align-items:center;gap:8px"><button class="tb" id="bSnd" title="売買の音">🔇 音</button><button class="tb" id="bTv" title="テレビ表示">📺 TV</button><div class="clock num" id="clock"></div></div></div>
   <div class="tiles">
     <div class="pane tile"><div class="k">総資産<span>EQUITY</span></div><div class="v num" id="tEq">—</div><div class="s num" id="tEqS">—</div></div>
     <div class="pane tile"><div class="k">今月<span>MONTH</span></div><div class="v num" id="tM">—</div><div class="bar2"><i id="tMb"></i></div></div>
@@ -99,7 +114,7 @@
   <div class="pane room"><h3>BOT ROOM<span id="roomSub">ビット・イーサ・リプル</span></h3><div class="fill" style="inset:22px 0 0"><canvas id="cvR"></canvas></div></div>
   <div class="pane feed"><h3>実況<span>LOG</span></h3><div class="list"><div class="sec">保有中</div><div id="pos"></div><div class="sec">売買</div><div id="log"></div></div></div>
   <div class="pane equity"><h3>資産の推移<span id="eqSpan">EQUITY</span></h3><div class="fill"><canvas id="cvE"></canvas></div></div>
-  <div class="pane month"><h3>月ごと<span>目標 +5%</span></h3><div class="list" id="mon" style="mask-image:none"></div></div>
+  <div class="pane month"><h3>成績<span>目標 +5%</span></h3><div class="list" style="mask-image:none"><div class="kpi" id="kpi"></div><div id="mon"></div></div></div>
 </div>
 <div class="banner" id="ban"><b id="banK"></b><div class="num" id="banV"></div><small id="banS"></small></div>
 <div class="demo" id="demo" hidden>サンプル映像（実データではありません）</div>
@@ -122,9 +137,11 @@ const S={tick:{},shown:{},ohlc:{},hist:{},status:null,seen:0,eqShown:0,focus:0,f
 PAIRS.forEach(p=>{S.mood[p]={state:"watch",until:0};S.hist[p]=[];});
 S.h1={};
 
+// TV表示のときは描画全体を拡大（文字・線を遠くから見やすく）
 function canvas(id){const c=$(id),x=c.getContext("2d");return{c,x,fit(){const r=c.getBoundingClientRect(),d=Math.min(2,devicePixelRatio||1);
+  const z=document.body.classList.contains("tv")?Math.max(1,Math.min(1.8,innerWidth/1100)):1;
   if(c.width!==Math.round(r.width*d)||c.height!==Math.round(r.height*d)){c.width=Math.round(r.width*d);c.height=Math.round(r.height*d);}
-  x.setTransform(d,0,0,d,0,0);return[r.width,r.height];}};}
+  x.setTransform(d*z,0,0,d*z,0,0);return[r.width/z,r.height/z];}};}
 const CC=canvas("cvC"),CR=canvas("cvR"),CE=canvas("cvE");
 
 /* ================= データ ================= */
@@ -178,13 +195,46 @@ function applyStatus(d){
     mo.state=d.halted?"sleep":d.positions.some(x=>x.pair===p)?"hold":"watch";}
   // 月
   const ms=Object.entries(d.monthly||{}).filter(([,v])=>v.start&&v.end).slice(-6).reverse();
+  renderKpi(d);
   $("mon").innerHTML="<table>"+ms.map(([k,v])=>{const r=v.end/v.start-1,w=Math.min(60,Math.abs(r)*600);
     return`<tr><td>${k}</td><td><span class="mbar" style="width:${w}px;background:${r>=0?"var(--up)":"var(--down)"}"></span><span class="num ${cls(r)}">${pct(r,1)}</span>${r>=d.target?" ★":""}</td></tr>`}).join("")+"</table>";
 }
 
+function renderKpi(d){
+  const ms=d.month_start_equity||(d.monthly&&d.month&&d.monthly[d.month]&&d.monthly[d.month].start);
+  const goal=ms?ms*(1+d.target)-d.equity:null, stop=ms?d.equity-ms*(1-d.max_loss):null;
+  const st=d.bot_stats||{}; let tr=0,w=0; Object.values(st).forEach(v=>{tr+=v.trades||0;w+=v.wins||0;});
+  if(!tr){const sells=d.trades.filter(q=>q.side==="sell");tr=sells.length;w=sells.filter(q=>(q.pnl||0)>0).length;}
+  const mk=d.month||"", mt=d.trades.filter(q=>q.side==="sell"&&new Date(q.ts+9*36e5).toISOString().slice(0,7)===mk);
+  const mpnl=mt.reduce((a,q)=>a+(q.pnl||0),0);
+  const cell=(k,v,c="")=>`<div><small>${k}</small><b class="num ${c}">${v}</b></div>`;
+  $("kpi").innerHTML=
+    cell("目標まで",goal==null?"—":goal<=0?"達成 ★":"あと "+yen(goal),goal!=null&&goal<=0?"gold":"")+
+    cell("停止ラインまで",stop==null?"—":yen(stop),stop!=null&&stop<(ms||0)*.05?"down":"")+
+    cell("勝率（通算）",tr?Math.round(w/tr*100)+"%":"—")+
+    cell("今月の決済",`${mt.length}回 <span class="${cls(mpnl)}" style="font-size:11px">${mt.length?(mpnl>=0?"+":"")+yen(mpnl):""}</span>`);
+}
 let banT;
+let AC=null, SOUND=store.get("rb_snd")==="1";
+function tone(f,t0,d,type="triangle",vol=.15){const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;
+  g.gain.setValueAtTime(0,AC.currentTime+t0);g.gain.linearRampToValueAtTime(vol,AC.currentTime+t0+.01);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+t0+d);
+  o.connect(g).connect(AC.destination);o.start(AC.currentTime+t0);o.stop(AC.currentTime+t0+d+.05);}
+function sfx(kind){ if(!SOUND)return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); AC.resume();
+  if(kind==="buy"){tone(660,0,.18);tone(990,.12,.3);}
+  else if(kind==="win"){[784,988,1175,1568].forEach((f,i)=>tone(f,i*.08,.35,"square",.07));}
+  else if(kind==="lose"){tone(330,0,.35,"sine",.18);tone(247,.2,.5,"sine",.15);}
+  else if(kind==="lvup"){[523,659,784,1047,1319].forEach((f,i)=>tone(f,i*.1,.4,"square",.07));}
+ }catch(e){} }
+function setSnd(on){SOUND=on;store.set("rb_snd",on?"1":"0");$("bSnd").textContent=on?"🔊 音":"🔇 音";$("bSnd").classList.toggle("on",on);if(on)sfx("buy");}
+$("bSnd").onclick=()=>setSnd(!SOUND); setSnd(SOUND);
+function setTv(on){document.body.classList.toggle("tv",on);$("bTv").classList.toggle("on",on);store.set("rb_tv",on?"1":"0");
+  if(on&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
+  if(!on&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});}
+$("bTv").onclick=()=>setTv(!document.body.classList.contains("tv"));
+if(new URLSearchParams(location.search).has("tv")||store.get("rb_tv")==="1")setTv(true);
 function react(x){
   const mo=S.mood[x.pair], now=performance.now();
+  sfx(x.side==="buy"?"buy":(x.pnl||0)>=0?"win":"lose");
   if(x.side==="buy"){mo.state="buy";mo.until=now+3500;}
   else{mo.state=(x.pnl||0)>=0?"win":"lose";mo.until=now+6000; if((x.pnl||0)>=0)burst(x.pair);}
   $("banK").textContent=x.side==="buy"?"▲ BUY":"▼ SELL"; $("banK").className=x.side==="buy"?"up":"down";
@@ -212,6 +262,13 @@ const CITY=(()=>{let s=7;const r=()=>(s=(s*16807)%2147483647)/2147483647;const b
   for(let i=0;i<46;i++){const w=.012+r()*.03,h=.25+r()*.7;const win=[];for(let k=0;k<14;k++)win.push([r(),r(),r()*6+1]);b.push({x:i/46,w,h,win});}return b;})();
 const DUST=Array.from({length:40},(_,i)=>({x:Math.random(),y:Math.random(),s:.3+Math.random()*.7,v:.004+Math.random()*.01}));
 
+function timeOfDay(){ // 日本時間で空の色を変える
+  const q=new URLSearchParams(location.search).get("hour"); const h=q!=null?+q:new Date(Date.now()+9*36e5).getUTCHours()+new Date().getUTCMinutes()/60;
+  if(h>=5&&h<7)  return{top:"#2b2a5e",bot:"#e0846a",sun:"rgba(255,190,120,.9)",sunY:.85,lit:.5};
+  if(h>=7&&h<16) return{top:"#3a6db0",bot:"#9cc4e8",sun:"rgba(255,245,210,.9)",sunY:.25,lit:.12};
+  if(h>=16&&h<19)return{top:"#3b2a6e",bot:"#ff8a5c",sun:"rgba(255,160,90,.95)",sunY:.8,lit:.6};
+  return{top:"#0b0820",bot:"#2a1240",sun:null,sunY:0,lit:1.01};
+}
 function roomMood(){ // 今月の成績で照明を変える
   const d=S.status; if(!d)return{c:"139,92,255",a:.10,alert:false};
   if(d.halted)return{c:"90,90,120",a:.18,alert:false};
@@ -231,11 +288,12 @@ function drawRoom(now,dt){
   const ww=W*.15, wh=hz*.38, wy=hz*.08;
   for(const wx of [W*.04, W*.81]){
     x.save(); rr(x,wx,wy,ww,wh,4); x.clip();
-    const sky=x.createLinearGradient(0,wy,0,wy+wh); sky.addColorStop(0,"#0b0820"); sky.addColorStop(1,"#2a1240"); x.fillStyle=sky; x.fillRect(wx,wy,ww,wh);
+    const tod=timeOfDay(), sky=x.createLinearGradient(0,wy,0,wy+wh); sky.addColorStop(0,tod.top); sky.addColorStop(1,tod.bot); x.fillStyle=sky; x.fillRect(wx,wy,ww,wh);
+    if(tod.sun){x.fillStyle=tod.sun;x.beginPath();x.arc(wx+ww*.72,wy+wh*tod.sunY,ww*.09,0,7);x.fill();}
     CITY.forEach((b,i)=>{const bx=wx+b.x*ww*1.1-ww*.05, bw=b.w*ww*3, bh=b.h*wh*.75, by=wy+wh-bh;
       x.fillStyle=i%3?"#0e0a1c":"#140e26"; x.fillRect(bx,by,bw,bh);
       b.win.forEach(([a,c,sp])=>{const on=Math.sin(now/1000/sp+a*40)>-.2; if(!on)return;
-        x.fillStyle=c>.7?"rgba(255,198,92,.8)":"rgba(255,95,199,.55)"; x.fillRect(bx+a*bw*.8,by+c*bh*.9,1.5,1.5);});});
+        if(c>tod.lit)return; x.fillStyle=c>.7?"rgba(255,198,92,.8)":"rgba(255,95,199,.55)"; x.fillRect(bx+a*bw*.8,by+c*bh*.9,1.5,1.5);});});
     x.restore();
     x.strokeStyle="rgba(139,92,255,.55)"; x.lineWidth=2; rr(x,wx,wy,ww,wh,4); x.stroke();
     x.fillStyle="rgba(139,92,255,.35)"; x.fillRect(wx+ww/2-1,wy,2,wh); x.fillRect(wx,wy+wh*.5-1,ww,2);
@@ -312,7 +370,7 @@ function botStats(p){
 }
 function level(p){const w=botStats(p).wins;return{lv:Math.min(5,1+Math.floor(w/LV_STEP)),xp:Math.min(5,1+Math.floor(w/LV_STEP))>=5?1:(w%LV_STEP)/LV_STEP};}
 const prevLv={};
-function checkLevelUp(){PAIRS.forEach(p=>{const l=level(p).lv;if(prevLv[p]&&l>prevLv[p]){burst(p);burst(p);
+function checkLevelUp(){PAIRS.forEach(p=>{const l=level(p).lv;if(prevLv[p]&&l>prevLv[p]){burst(p);burst(p);setTimeout(()=>sfx("lvup"),900);
   $("banK").textContent="★ LEVEL UP";$("banK").className="gold";$("banV").innerHTML=`<span style="color:${COIN[p]}">${CHAR[p].name}</span> Lv.${l}`;
   $("banS").textContent=["","","ヘッドセット装備","マフラー装備","マント装備","王冠を獲得"][l]||"";$("ban").classList.add("show");clearTimeout(banT);banT=setTimeout(()=>$("ban").classList.remove("show"),4200);}
   prevLv[p]=l;});}
@@ -558,9 +616,9 @@ function demoStatus(){D.t++;const now=Date.now();
     else{D.trades.push({ts:now,pair:p,side:"buy",price:D.px[p],reason:"トレンド買い",pnl:null});D.pos.push({pair:p,amount:30000/D.px[p],entry:D.px[p],stop:D.px[p]*.985});}}
   const un=D.pos.reduce((s,q)=>s+(D.px[q.pair]-q.entry)*q.amount,0),eq=D.eq+un,start=D.mstart;
   D.hist.push([now,eq]);
-  applyStatus({mode:"paper",equity:eq,month_return:eq/start-1,target:.05,max_loss:.2,total_start_equity:100000,halted:false,defensive:eq/start-1>=.05,
+  applyStatus({mode:"paper",month:new Date(now+9*36e5).toISOString().slice(0,7),month_start_equity:start,equity:eq,month_return:eq/start-1,target:.05,max_loss:.2,total_start_equity:100000,halted:false,defensive:eq/start-1>=.05,
     positions:D.pos.map(q=>({...q})),trades:D.trades.slice(),bot_stats:JSON.parse(JSON.stringify(D.stats)),equity_history:D.hist,
-    monthly:{"2026-08":{start:100000,end:97800},"2026-09":{start:97800,end:103900},"2026-10":{start:103900,end:115200},"2026-11":{start:D.mstart,end:eq}}});}
+    monthly:{"2026-08":{start:100000,end:97800},"2026-09":{start:97800,end:103900},"2026-10":{start:103900,end:115200},[new Date(now+9*36e5).toISOString().slice(0,7)]:{start:D.mstart,end:eq}}});}
 
 /* ================= 起動 ================= */
 if(DEMO){$("demo").hidden=false;demoInit();}
