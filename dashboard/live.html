@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07080a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ROOT BOT LIVE</title>
+<style>
+  :root{--bg:#07080a;--panel:rgba(255,255,255,.035);--line:rgba(255,255,255,.08);--text:#ece8df;--mute:#7d828b;
+        --gold:#c9a45c;--up:#4fd1a0;--down:#ff6b5e;--warn:#f0b84a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--text);overflow:hidden;
+    font:14px/1.4 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;-webkit-font-smoothing:antialiased}
+  .num{font-variant-numeric:tabular-nums}
+  .up{color:var(--up)} .down{color:var(--down)}
+  #app{position:fixed;inset:0;display:grid;padding:max(12px,env(safe-area-inset-top)) 14px 0;gap:12px;
+    grid-template-columns:1fr 330px;grid-template-rows:auto auto 1fr auto;
+    grid-template-areas:"top top" "tick side" "chart side" "tape tape"}
+  /* 上部 */
+  .top{grid-area:top;display:flex;align-items:center;justify-content:space-between}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2em;font-size:13px;color:var(--gold)}
+  .live{display:inline-flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.12em;color:#fff;
+        background:#c4302b;padding:3px 9px;border-radius:5px}
+  .live i{width:7px;height:7px;border-radius:50%;background:#fff;animation:blink 1.2s infinite}
+  @keyframes blink{50%{opacity:.25}}
+  .clock{font-size:13px;color:var(--mute);letter-spacing:.06em}
+  .mode{font-size:11px;color:var(--gold);border:1px solid rgba(201,164,92,.4);padding:2px 8px;border-radius:99px;margin-left:8px}
+  /* 価格カード */
+  .tick{grid-area:tick;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .pc{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;position:relative;overflow:hidden;
+      transition:border-color .4s, background .4s; cursor:pointer}
+  .pc.focus{border-color:rgba(201,164,92,.55);background:rgba(201,164,92,.06)}
+  .pc .n{font-size:11px;color:var(--mute);display:flex;justify-content:space-between}
+  .pc .p{font-size:19px;font-weight:700;margin-top:2px;transition:color .5s}
+  .pc .c{font-size:12px}
+  .pc.flash-up{animation:fu .8s} .pc.flash-down{animation:fd .8s}
+  @keyframes fu{0%{box-shadow:inset 0 0 0 999px rgba(79,209,160,.16)}100%{box-shadow:inset 0 0 0 999px transparent}}
+  @keyframes fd{0%{box-shadow:inset 0 0 0 999px rgba(255,107,94,.16)}100%{box-shadow:inset 0 0 0 999px transparent}}
+  .pc .hold{position:absolute;top:8px;right:10px;font-size:10px;color:#111;background:var(--gold);padding:1px 6px;border-radius:4px;display:none}
+  .pc.holding .hold{display:block} .pc.holding .n span:last-child{display:none}
+  /* チャート */
+  .chart{grid-area:chart;position:relative;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;min-height:200px}
+  .chart canvas{position:absolute;inset:0;width:100%;height:100%}
+  .chart .ttl{position:absolute;left:16px;top:12px;z-index:2}
+  .chart .ttl b{font-size:15px} .chart .ttl small{display:block;font-size:11px;color:var(--mute)}
+  .chart .prog{position:absolute;left:0;bottom:0;height:2px;background:var(--gold);opacity:.6;width:0}
+  /* 右側 */
+  .side{grid-area:side;display:flex;flex-direction:column;gap:12px;min-height:0}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px}
+  .lbl{font-size:11px;color:var(--mute);letter-spacing:.08em}
+  .eq{font-size:30px;font-weight:700;letter-spacing:-.01em;margin:2px 0 4px}
+  .gauge{position:relative;height:8px;border-radius:99px;margin:22px 0 6px;
+         background:linear-gradient(90deg,#4a1f1b,#26292f 80%,#1f4a3b)}
+  .gauge .z{position:absolute;left:80%;top:-4px;bottom:-4px;width:2px;background:var(--mute)}
+  .gauge .m{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:var(--text);transform:translate(-50%,-50%);
+            box-shadow:0 0 0 0 rgba(236,232,223,.5);animation:pulse 2s infinite;transition:left 1s}
+  @keyframes pulse{70%{box-shadow:0 0 0 10px rgba(236,232,223,0)}100%{box-shadow:0 0 0 0 rgba(236,232,223,0)}}
+  .gauge .m span{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;white-space:nowrap}
+  .tk{position:relative;height:14px;font-size:10px;color:var(--mute)}
+  .tk span{position:absolute;white-space:nowrap} .tk span:nth-child(1){left:0}
+  .tk span:nth-child(2){left:80%;transform:translateX(-50%)} .tk span:nth-child(3){right:0}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .chip{font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(255,255,255,.06);color:var(--mute)}
+  .chip.ok{color:var(--up)} .chip.warn{color:var(--warn)} .chip.stop{background:var(--down);color:#fff}
+  .feed{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+  .feed .list{flex:1;overflow:hidden;margin-top:8px;mask-image:linear-gradient(#000 75%,transparent)}
+  .ev{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line);animation:slide .6s ease-out}
+  .ev:first-child{border-top:none}
+  @keyframes slide{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+  .ev .s{font-size:11px;font-weight:700;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex-shrink:0}
+  .ev .s.buy{background:rgba(79,209,160,.15);color:var(--up)} .ev .s.sell{background:rgba(255,107,94,.15);color:var(--down)}
+  .ev .s.info{background:rgba(255,255,255,.07);color:var(--mute)}
+  .ev .t{flex:1;min-width:0;font-size:13px} .ev .t small{display:block;color:var(--mute);font-size:11px}
+  .ev .r{text-align:right;font-size:12px}
+  /* 下のテロップ */
+  .tape{grid-area:tape;height:34px;margin:0 -14px;border-top:1px solid var(--line);overflow:hidden;position:relative;
+        padding-bottom:env(safe-area-inset-bottom);background:rgba(255,255,255,.02)}
+  .tape .run{position:absolute;white-space:nowrap;top:8px;font-size:13px;color:var(--mute);will-change:transform}
+  .tape .run b{color:var(--text);font-weight:600;margin:0 6px 0 28px}
+  /* 売買の瞬間に出る大きな通知 */
+  .toast{position:fixed;left:50%;top:22%;transform:translate(-50%,-20px) scale(.96);opacity:0;pointer-events:none;z-index:10;
+    background:rgba(12,13,16,.92);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:20px;padding:18px 26px;text-align:center;
+    transition:all .5s cubic-bezier(.2,.9,.3,1.2);min-width:260px}
+  .toast.show{opacity:1;transform:translate(-50%,0) scale(1)}
+  .toast .k{font-size:12px;letter-spacing:.2em;font-weight:700}
+  .toast .v{font-size:26px;font-weight:700;margin-top:4px}
+  .toast .w{font-size:13px;color:var(--mute);margin-top:2px}
+  .demo{position:fixed;right:14px;bottom:44px;font-size:11px;color:var(--gold);background:rgba(201,164,92,.12);padding:3px 9px;border-radius:6px;z-index:5}
+  .login{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:20}
+  .login.show{display:flex}
+  .login form{width:300px;text-align:center}
+  .login input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--line);background:#121418;color:var(--text);font:inherit;font-size:16px;margin:14px 0 10px}
+  .login button{width:100%;padding:14px;border-radius:12px;border:none;background:var(--gold);color:#1a1408;font:inherit;font-weight:700}
+  /* 縦長（iPhone） */
+  @media (max-aspect-ratio: 1/1){
+    #app{grid-template-columns:1fr;grid-template-rows:auto auto auto minmax(220px,1fr) auto auto;
+         grid-template-areas:"top" "side1" "tick" "chart" "feedm" "tape"}
+    .side{display:contents}
+    .side .sum{grid-area:side1}
+    .side .feed{grid-area:feedm;max-height:26vh}
+    .pc .p{font-size:15px} .pc{padding:8px 10px} .eq{font-size:26px}
+    .brand{letter-spacing:.12em;white-space:nowrap} .clock{font-size:12px;white-space:nowrap}
+    .brand .mode{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top">
+    <div class="brand">ROOT BOT <span class="live"><i></i>LIVE</span><span class="mode" id="mode">仮想売買</span></div>
+    <div class="clock num" id="clock"></div>
+  </div>
+  <div class="tick" id="tick"></div>
+  <div class="chart" id="chartBox">
+    <div class="ttl"><b id="cTitle">—</b><small id="cSub">直近3時間・1分ごと</small></div>
+    <canvas id="cv"></canvas>
+    <div class="prog" id="prog"></div>
+  </div>
+  <div class="side">
+    <div class="box sum">
+      <div class="lbl">総資産</div>
+      <div class="eq num" id="eq">—</div>
+      <div class="lbl">今月 <span id="mret" class="num" style="font-weight:700"></span>・通算 <span id="tret" class="num" style="font-weight:700"></span></div>
+      <div class="gauge"><div class="z"></div><div class="m" id="gm"><span id="gl"></span></div></div>
+      <div class="tk"><span>−20% 停止</span><span>0</span><span>+5%</span></div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="box feed"><div class="lbl">売買の実況</div><div class="list" id="feed"></div></div>
+  </div>
+  <div class="tape"><div class="run" id="run"></div></div>
+</div>
+<div class="toast" id="toast"><div class="k" id="tk"></div><div class="v num" id="tv"></div><div class="w" id="tw"></div></div>
+<div class="demo" id="demo" hidden>サンプル映像（実データではありません）</div>
+<div class="login" id="login"><form id="lf">
+  <div class="brand" style="justify-content:center">ROOT BOT LIVE</div>
+  <input id="pw" type="password" placeholder="合言葉"><button>開く</button></form></div>
+
+<script>
+const PAIRS = ["btc_jpy","eth_jpy","xrp_jpy"];
+const NAME = {btc_jpy:"ビットコイン",eth_jpy:"イーサリアム",xrp_jpy:"リップル"};
+const SYM = {btc_jpy:"BTC",eth_jpy:"ETH",xrp_jpy:"XRP"};
+const ROTATE_MS = 20000;
+const DEMO = new URLSearchParams(location.search).has("demo") || location.protocol === "file:";
+const $ = id => document.getElementById(id);
+const store = {get:k=>{try{return localStorage.getItem(k)}catch{return null}}, set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
+const fmt = (v, pair) => v == null ? "—" : "¥" + (pair === "xrp_jpy" ? v.toFixed(3) : Math.round(v).toLocaleString("ja-JP"));
+const yen = v => (v < 0 ? "−¥" : "¥") + Math.abs(Math.round(v)).toLocaleString("ja-JP");
+const pct = (v,d=2) => v == null || isNaN(v) ? "—" : (v>=0?"+":"") + (v*100).toFixed(d) + "%";
+const cls = v => v > 0 ? "up" : v < 0 ? "down" : "";
+const jst = (ts, o={hour:"2-digit",minute:"2-digit"}) => new Date(ts).toLocaleTimeString("ja-JP",{timeZone:"Asia/Tokyo",...o});
+
+const S = {tick:{}, shown:{}, candles:[], focus:0, focusAt:performance.now(), status:null, seen:0,
+           eqShown:0, yLo:null, yHi:null, events:[]};
+
+/* ---------- 価格カード ---------- */
+$("tick").innerHTML = PAIRS.map((p,i) => `<div class="pc" id="pc_${p}" data-i="${i}">
+  <span class="hold">保有中</span>
+  <div class="n"><span>${NAME[p]}</span><span>${SYM[p]}</span></div>
+  <div class="p num" id="pp_${p}">—</div><div class="c num" id="pcg_${p}">—</div></div>`).join("");
+document.querySelectorAll(".pc").forEach(el => el.onclick = () => setFocus(+el.dataset.i));
+
+function setFocus(i){ S.focus = i; S.focusAt = performance.now(); S.candles = []; S.yLo = S.yHi = null; loadMarket(true); }
+
+function applyTickers(t){
+  for (const p of PAIRS){
+    if (!t[p]) continue;
+    const prev = S.tick[p] && S.tick[p].last;
+    S.tick[p] = t[p];
+    if (S.shown[p] == null) S.shown[p] = t[p].last;
+    if (prev != null && t[p].last !== prev){
+      const el = $("pc_"+p); el.classList.remove("flash-up","flash-down"); void el.offsetWidth;
+      el.classList.add(t[p].last > prev ? "flash-up" : "flash-down");
+    }
+    const ch = t[p].last / t[p].open - 1;
+    $("pcg_"+p).textContent = "24時間 " + pct(ch); $("pcg_"+p).className = "c num " + cls(ch);
+  }
+  tape();
+}
+
+/* ---------- 下のテロップ ---------- */
+let tapeX = 0, tapeW = 0;
+function tape(){
+  const parts = PAIRS.filter(p => S.tick[p]).map(p => {
+    const t = S.tick[p], ch = t.last / t.open - 1;
+    return `<b>${SYM[p]}</b>${fmt(t.last,p)} <span class="${cls(ch)}">${pct(ch)}</span>　高値 ${fmt(t.high,p)}　安値 ${fmt(t.low,p)}`;
+  });
+  const ev = S.events.slice(0,3).map(e => `<b>実況</b>${e.title} ${e.sub}`);
+  const html = [...parts, ...ev].join("") ;
+  $("run").innerHTML = html + html;
+  tapeW = $("run").scrollWidth / 2;
+}
+
+/* ---------- データ取得 ---------- */
+async function loadMarket(withCandles){
+  if (DEMO) return demoMarket(withCandles);
+  const pair = PAIRS[S.focus];
+  try {
+    const r = await fetch(`/api/market${withCandles ? "?pair="+pair : ""}`, {cache:"no-store"});
+    const d = await r.json();
+    if (d.tickers) applyTickers(d.tickers);
+    if (d.candles && d.pair === PAIRS[S.focus]) S.candles = d.candles;
+  } catch(e) {}
+}
+async function loadStatus(){
+  if (DEMO) return demoStatus();
+  const pass = store.get("rb_pass"); if (!pass) { $("login").classList.add("show"); return; }
+  try {
+    const r = await fetch("/api/status", {headers:{"x-dash-pass":pass}, cache:"no-store"});
+    if (r.status === 401) { $("login").classList.add("show"); return; }
+    if (r.ok) applyStatus(await r.json());
+  } catch(e) {}
+}
+$("lf").onsubmit = e => { e.preventDefault(); store.set("rb_pass", $("pw").value); $("login").classList.remove("show"); loadStatus(); };
+
+/* ---------- ボットの状態 ---------- */
+function applyStatus(d){
+  const first = !S.status; S.status = d;
+  $("mode").textContent = d.mode === "live" ? "本番運用" : "仮想売買";
+  const m = d.month_return, t = d.equity / d.total_start_equity - 1;
+  $("mret").textContent = pct(m); $("mret").className = "num " + cls(m);
+  $("tret").textContent = pct(t); $("tret").className = "num " + cls(t);
+  const pos = Math.max(0, Math.min(1, (m + d.max_loss) / (d.target + d.max_loss)));
+  $("gm").style.left = pos*100 + "%"; $("gl").textContent = pct(m); $("gl").className = "num " + cls(m);
+  const chips = [d.halted ? ["stop","今月は停止中"] : ["ok","稼働中"]];
+  if (d.defensive) chips.push(["warn","目標達成・守りモード"]);
+  chips.push(["", `保有 ${d.positions.length}/3`]);
+  $("chips").innerHTML = chips.map(([c,s]) => `<span class="chip ${c}">${s}</span>`).join("");
+  PAIRS.forEach(p => $("pc_"+p).classList.toggle("holding", d.positions.some(x => x.pair === p)));
+
+  const fresh = d.trades.filter(x => x.ts > S.seen).sort((a,b) => a.ts - b.ts);
+  if (first) { S.events = d.trades.slice(-8).reverse().map(toEvent); renderFeed(); }
+  else fresh.forEach(x => { const e = toEvent(x); S.events.unshift(e); renderFeed(); showToast(x); });
+  S.seen = Math.max(S.seen, ...d.trades.map(x => x.ts), 0);
+  if (first) S.eqShown = d.equity;
+}
+function toEvent(x){
+  return {side:x.side, title:`${NAME[x.pair]}を${x.side==="buy"?"購入":"売却"}`,
+    sub:`${jst(x.ts)}・${x.reason}`, price:fmt(x.price,x.pair), pnl:x.pnl};
+}
+function renderFeed(){
+  S.events = S.events.slice(0,20);
+  $("feed").innerHTML = S.events.map(e => `<div class="ev"><div class="s ${e.side}">${e.side==="buy"?"買":e.side==="sell"?"売":"・"}</div>
+    <div class="t">${e.title}<small>${e.sub}</small></div>
+    <div class="r num"><div>${e.price||""}</div>${e.pnl!=null?`<div class="${cls(e.pnl)}">${e.pnl>=0?"+":""}${yen(e.pnl)}</div>`:""}</div></div>`).join("")
+    || `<div class="ev"><div class="s info">・</div><div class="t">チャンス待ち<small>トレンドが出たら自動で動きます</small></div></div>`;
+  tape();
+}
+let toastTimer;
+function showToast(x){
+  const buy = x.side === "buy";
+  $("tk").textContent = buy ? "BUY ・ 購入" : "SELL ・ 売却"; $("tk").className = "k " + (buy ? "up" : "down");
+  $("tv").textContent = `${NAME[x.pair]} ${fmt(x.price,x.pair)}`;
+  $("tw").innerHTML = x.reason + (x.pnl != null ? `　<span class="${cls(x.pnl)}">${x.pnl>=0?"+":""}${yen(x.pnl)}</span>` : "");
+  $("toast").classList.add("show"); clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $("toast").classList.remove("show"), 4200);
+  setFocus(PAIRS.indexOf(x.pair));
+}
+
+/* ---------- 描画ループ（映像のように常に動かす） ---------- */
+const cv = $("cv"), ctx = cv.getContext("2d");
+let lastT = performance.now();
+function frame(now){
+  const dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+  // 価格表示をなめらかに追従
+  for (const p of PAIRS){
+    if (!S.tick[p]) continue;
+    S.shown[p] += (S.tick[p].last - S.shown[p]) * Math.min(1, dt * 4);
+    $("pp_"+p).textContent = fmt(S.shown[p], p);
+  }
+  if (S.status){
+    S.eqShown += (S.status.equity - S.eqShown) * Math.min(1, dt * 2.5);
+    $("eq").textContent = yen(S.eqShown);
+  }
+  // ペアの自動切替
+  const el = now - S.focusAt;
+  $("prog").style.width = Math.min(100, el / ROTATE_MS * 100) + "%";
+  if (el > ROTATE_MS) setFocus((S.focus + 1) % PAIRS.length);
+  document.querySelectorAll(".pc").forEach((c,i) => c.classList.toggle("focus", i === S.focus));
+  // テロップ
+  if (tapeW){ tapeX -= dt * 60; if (-tapeX > tapeW) tapeX += tapeW; $("run").style.transform = `translateX(${tapeX}px)`; }
+  drawChart(now, dt);
+  requestAnimationFrame(frame);
+}
+
+function drawChart(now, dt){
+  const pair = PAIRS[S.focus], box = cv.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+  if (cv.width !== Math.round(box.width*dpr) || cv.height !== Math.round(box.height*dpr)) { cv.width = Math.round(box.width*dpr); cv.height = Math.round(box.height*dpr); }
+  const W = box.width, H = box.height; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  $("cTitle").textContent = `${NAME[pair]}（${SYM[pair]}/JPY）`;
+  const live = S.shown[pair];
+  if (!S.candles.length || live == null){ ctx.fillStyle="#7d828b"; ctx.font="13px sans-serif"; ctx.fillText("読み込み中…", 16, 60); return; }
+  const pts = S.candles.slice(); const lastTs = pts[pts.length-1][0];
+  pts.push([Math.max(Date.now(), lastTs + 1000), live]);
+  const pos = S.status && S.status.positions.find(x => x.pair === pair);
+  let lo = Math.min(...pts.map(p=>p[1])), hi = Math.max(...pts.map(p=>p[1]));
+  if (pos){ lo = Math.min(lo, pos.stop); hi = Math.max(hi, pos.entry); }
+  const pad = (hi - lo) * 0.15 || hi * 0.002; lo -= pad; hi += pad;
+  if (S.yLo == null){ S.yLo = lo; S.yHi = hi; }
+  S.yLo += (lo - S.yLo) * Math.min(1, dt*3); S.yHi += (hi - S.yHi) * Math.min(1, dt*3);
+  const L = 14, R = 92, T = 54, B = 26;
+  const t0 = pts[0][0], t1 = pts[pts.length-1][0];
+  const X = t => L + (t - t0) / (t1 - t0 || 1) * (W - L - R);
+  const Y = v => T + (1 - (v - S.yLo) / (S.yHi - S.yLo)) * (H - T - B);
+  // グリッド
+  ctx.font = "11px -apple-system,sans-serif"; ctx.textAlign = "left";
+  for (let i = 0; i <= 4; i++){
+    const v = S.yLo + (S.yHi - S.yLo) * i / 4, y = Y(v);
+    ctx.strokeStyle = "rgba(255,255,255,.05)"; ctx.beginPath(); ctx.moveTo(L,y); ctx.lineTo(W-R,y); ctx.stroke();
+    ctx.fillStyle = "#5c616a"; ctx.fillText(fmt(v,pair), W-R+8, y+4);
+  }
+  ctx.fillStyle = "#5c616a"; ctx.fillText(jst(t0), L, H-8); ctx.textAlign = "right"; ctx.fillText("いま", W-R, H-8); ctx.textAlign = "left";
+  // 線とグラデーション
+  const up = live >= pts[0][1], col = up ? "79,209,160" : "255,107,94";
+  ctx.beginPath(); pts.forEach((p,i) => i ? ctx.lineTo(X(p[0]),Y(p[1])) : ctx.moveTo(X(p[0]),Y(p[1])));
+  const g = ctx.createLinearGradient(0,T,0,H-B); g.addColorStop(0,`rgba(${col},.25)`); g.addColorStop(1,`rgba(${col},0)`);
+  ctx.save(); ctx.lineTo(X(t1),H-B); ctx.lineTo(X(t0),H-B); ctx.closePath(); ctx.fillStyle = g; ctx.fill(); ctx.restore();
+  ctx.beginPath(); pts.forEach((p,i) => i ? ctx.lineTo(X(p[0]),Y(p[1])) : ctx.moveTo(X(p[0]),Y(p[1])));
+  ctx.strokeStyle = `rgb(${col})`; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.shadowColor = `rgba(${col},.6)`; ctx.shadowBlur = 8; ctx.stroke(); ctx.shadowBlur = 0;
+  // 保有中なら買値と損切りライン
+  if (pos){
+    hline(Y(pos.entry), "rgba(201,164,92,.85)", `買値 ${fmt(pos.entry,pair)}`, W, L, R);
+    hline(Y(pos.stop), "rgba(255,107,94,.8)", `損切り ${fmt(pos.stop,pair)}`, W, L, R);
+  }
+  // 売買の印
+  if (S.status) S.status.trades.filter(x => x.pair === pair && x.ts >= t0).forEach(x => {
+    const x0 = X(x.ts), y0 = Y(x.price), buy = x.side === "buy";
+    ctx.fillStyle = buy ? "#4fd1a0" : "#ff6b5e"; ctx.beginPath();
+    if (buy){ ctx.moveTo(x0, y0+6); ctx.lineTo(x0-6, y0+16); ctx.lineTo(x0+6, y0+16); }
+    else { ctx.moveTo(x0, y0-6); ctx.lineTo(x0-6, y0-16); ctx.lineTo(x0+6, y0-16); }
+    ctx.fill();
+  });
+  // 現在値の光る点
+  const hx = X(t1), hy = Y(live), pulse = (now % 1600) / 1600;
+  ctx.beginPath(); ctx.arc(hx, hy, 4 + pulse*14, 0, 7); ctx.fillStyle = `rgba(${col},${.35*(1-pulse)})`; ctx.fill();
+  ctx.beginPath(); ctx.arc(hx, hy, 4, 0, 7); ctx.fillStyle = `rgb(${col})`; ctx.fill();
+  // 現在値ラベル
+  const lab = fmt(live,pair); ctx.font = "bold 12px -apple-system,sans-serif";
+  const tw = ctx.measureText(lab).width + 12;
+  ctx.fillStyle = `rgb(${col})`; roundRect(W-R+4, hy-10, Math.min(tw, R-6), 20, 5); ctx.fill();
+  ctx.fillStyle = "#07080a"; ctx.fillText(lab, W-R+10, hy+4);
+}
+function hline(y, c, label, W, L, R){
+  ctx.save(); ctx.setLineDash([5,5]); ctx.strokeStyle = c; ctx.beginPath(); ctx.moveTo(L,y); ctx.lineTo(W-R,y); ctx.stroke(); ctx.restore();
+  ctx.fillStyle = c; ctx.font = "11px -apple-system,sans-serif"; ctx.fillText(label, L+4, y-5);
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+const narrow = () => innerWidth < innerHeight;
+setInterval(() => $("clock").textContent = new Date().toLocaleString("ja-JP", narrow()
+  ? {timeZone:"Asia/Tokyo",hour:"2-digit",minute:"2-digit",second:"2-digit"}
+  : {timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",weekday:"short",hour:"2-digit",minute:"2-digit",second:"2-digit"}), 1000);
+
+/* ---------- サンプル映像用のデータ ---------- */
+const D = {px:{btc_jpy:15320000, eth_jpy:528000, xrp_jpy:318.4}, open:{}, hist:{}, eq:118400, trades:[], pos:[], t:0};
+function demoInit(){
+  const now = Date.now();
+  for (const p of PAIRS){
+    D.open[p] = D.px[p] * (1 - 0.012 + Math.random()*0.03);
+    let v = D.px[p] * 0.992; D.hist[p] = [];
+    for (let i = 180; i > 0; i--){ v *= 1 + (Math.random() - .48) * 0.0016; D.hist[p].push([now - i*60000, v]); }
+    D.px[p] = v;
+  }
+  D.pos = [{pair:"eth_jpy", amount:.07, entry:D.hist.eth_jpy[120][1], stop:D.hist.eth_jpy[120][1]*0.982}];
+  D.trades = [{ts:now-170*60000,pair:"btc_jpy",side:"buy",price:D.hist.btc_jpy[10][1],reason:"トレンド買い",pnl:null},
+              {ts:now-95*60000,pair:"btc_jpy",side:"sell",price:D.hist.btc_jpy[85][1],reason:"トレンド終了",pnl:612},
+              {ts:now-60*60000,pair:"eth_jpy",side:"buy",price:D.pos[0].entry,reason:"トレンド買い",pnl:null}];
+}
+function demoMarket(withCandles){
+  const now = Date.now(), t = {};
+  for (const p of PAIRS){
+    D.px[p] *= 1 + (Math.random() - .485) * 0.0009;
+    const h = D.hist[p]; if (now - h[h.length-1][0] > 60000) { h.push([now, D.px[p]]); h.shift(); }
+    t[p] = {last:D.px[p], open:D.open[p], high:Math.max(...h.map(x=>x[1])), low:Math.min(...h.map(x=>x[1]))};
+  }
+  applyTickers(t);
+  S.candles = D.hist[PAIRS[S.focus]].slice(0, -1);
+}
+function demoStatus(){
+  D.t++;
+  const now = Date.now();
+  if (D.t % 6 === 0){ // 一定間隔で売買を発生させる
+    const p = PAIRS[(D.t/6) % 3 | 0];
+    const held = D.pos.find(x => x.pair === p);
+    if (held){ const pnl = (D.px[p]-held.entry)*held.amount; D.trades.push({ts:now,pair:p,side:"sell",price:D.px[p],reason:pnl>=0?"トレンド終了":"損切り",pnl:Math.round(pnl)}); D.pos = D.pos.filter(x=>x!==held); D.eq += pnl; }
+    else { D.trades.push({ts:now,pair:p,side:"buy",price:D.px[p],reason:"トレンド買い",pnl:null}); D.pos.push({pair:p,amount:30000/D.px[p],entry:D.px[p],stop:D.px[p]*0.985}); }
+  }
+  const unreal = D.pos.reduce((s,x) => s + (D.px[x.pair]-x.entry)*x.amount, 0);
+  const eq = D.eq + unreal, start = 115200;
+  applyStatus({mode:"paper", equity:eq, month_return:eq/start-1, target:.05, max_loss:.2, total_start_equity:100000,
+    halted:false, defensive:eq/start-1 >= .05, positions:D.pos.map(x=>({...x})), trades:D.trades.slice()});
+}
+
+/* ---------- 起動 ---------- */
+if (DEMO){ $("demo").hidden = false; demoInit(); }
+loadMarket(true); loadStatus();
+setInterval(() => loadMarket(false), DEMO ? 1000 : 3000);
+setInterval(() => loadMarket(true), 60000);
+setInterval(loadStatus, DEMO ? 4000 : 60000);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
