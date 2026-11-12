@@ -2,7 +2,7 @@ name: root_bot 定期実行
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # 15分ごと（GitHubの混雑で数分遅れることがあります）
+    - cron: "7 * * * *"   # 予備：1時間ごと（GitHubの定期実行は遅れ・間引きが多いので、主な起動はClaudeの予定タスクから）
   workflow_dispatch: {}
   push:
     branches: [main]
