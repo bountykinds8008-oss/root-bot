@@ -53,7 +53,7 @@ def main():
     other = {"btc_jpy": {"eth": data["eth_jpy"]["close"]},
              "eth_jpy": {"btc": data["btc_jpy"]["close"]},
              "xrp_jpy": {"btc": data["btc_jpy"]["close"]}}
-    first = max(int(d["ts"].iloc[0]) for d in data.values())
+    first = min(int(d["ts"].iloc[0]) for d in data.values())  # 銘柄ごとに始まりが違ってよい（ETHは2021〜）
     y0 = datetime.fromtimestamp(first / 1000, P.JST).year + 1
     end_all = min(int(d["ts"].iloc[-1]) for d in data.values())
     out = {"generated": datetime.now(P.JST).isoformat(), "runs": {}}
@@ -74,6 +74,9 @@ def main():
                     va = valid & (ts >= P.ts_ms(Y - 1)) & (ts < P.ts_ms(Y))
                     # 学習データの最後H+3時間は答えが未来に食い込むので外す
                     tr &= ts < P.ts_ms(Y - 1) - (H + 3) * 3600_000
+                    if tr.sum() < 2000 or va.sum() < 500:      # 学習データが足りない銘柄（ETHの初期）は見送り
+                        i0, i1 = np.searchsorted(ts, a), np.searchsorted(ts, b)
+                        sleeves.append(np.ones(max(0, i1 - i0))); continue
                     clf = HistGradientBoostingClassifier(max_iter=200, learning_rate=0.05, max_leaf_nodes=15,
                                                          min_samples_leaf=200, l2_regularization=1.0, random_state=0)
                     clf.fit(F[tr], (y[tr] > 0).astype(int))

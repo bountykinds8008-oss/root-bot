@@ -112,12 +112,16 @@ def conditions(df, feat, train_end):
     tr = df["ts"] < train_end
     for col in feat.columns:
         x = feat[col]
-        qs = np.nanquantile(x[tr], [0.1, 0.3, 0.7, 0.9])
+        xt = x[tr].dropna()
+        if len(xt) < 500:          # 作る期間にデータが足りない銘柄（ETHの初期など）は条件なし
+            qs = np.array([np.inf] * 4)
+        else:
+            qs = np.quantile(xt, [0.1, 0.3, 0.7, 0.9])
         b = np.digitize(x, qs)                 # 0..4：下位10%｜10-30｜30-70｜70-90｜上位10%
         b = np.where(x.isna(), -1, b)
         names = ["最下位10%", "下位10-30%", "中間", "上位10-30%", "最上位10%"]
         for k in (0, 1, 3, 4):
-            conds[f"{col}:{names[k]}"] = b == k
+            conds[f"{col}:{names[k]}"] = (b == k) & np.isfinite(qs[0])
             groups[f"{col}:{names[k]}"] = col
     st = streak(df["close"]).values
     for k, m in (("陰線3本以上", st <= -3), ("陰線5本以上", st <= -5), ("陽線3本以上", st >= 3), ("陽線5本以上", st >= 5)):
@@ -297,7 +301,10 @@ def simulate(data, feats, rules, start, end, alloc=1 / 3):
         busy_until = -1
         i0 = np.searchsorted(ts, start)
         i1 = np.searchsorted(ts, end)
+        pending = None                         # (決済する時刻, 損益)：損益は決済した時に資産へ反映
         for t in range(i0, i1):
+            if pending is not None and t >= pending[0]:
+                cur *= 1 + pending[1]; pending = None
             eq[t] = cur
             if t <= busy_until:
                 continue
@@ -321,9 +328,12 @@ def simulate(data, feats, rules, start, end, alloc=1 / 3):
                 end_t = t + H
             if end_t >= i1:
                 break
-            cur *= 1 + y[t]
+            pending = (end_t, float(y[t]))
             trades.append({"pair": pair, "ts": int(ts[t]), "ret": float(y[t]), "H": H, "side": r["side"], "rule": r["rule"]})
             busy_until = end_t
+        if pending is not None:
+            cur *= 1 + pending[1]
+        eq[t:i1] = cur if i1 > i0 else 1.0
         eq[i1:] = cur
         eq[:i0] = 1.0
         curves[pair] = pd.Series(eq, index=df.index)
@@ -362,7 +372,7 @@ def buy_hold(data, start, end):
 
 def main():
     data = {p: load(p) for p in PAIRS}
-    first = max(int(d["ts"].iloc[0]) for d in data.values())
+    first = min(int(d["ts"].iloc[0]) for d in data.values())  # 銘柄ごとに始まりが違ってよい（ETHは2021〜）
     print("データ開始", datetime.fromtimestamp(first / 1000, JST).date(), file=sys.stderr)
     other = {"btc_jpy": {"eth": data["eth_jpy"]["close"]},
              "eth_jpy": {"btc": data["btc_jpy"]["close"]},
