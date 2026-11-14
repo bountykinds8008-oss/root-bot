@@ -1,0 +1,28 @@
+name: パターン研究用データ集め（pattern-labブランチ専用・お金は使わない）
+
+on:
+  push:
+    branches: [pattern-lab]
+    paths: [".github/lab-fetch-request"]
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 1時間足を全部集める（2018〜）
+        run: python -m lab.fetch 2018
+      - name: 保存（pattern-labブランチのみ）
+        run: |
+          git config user.name "root-bot"
+          git config user.email "root-bot@users.noreply.github.com"
+          git add lab/data/
+          git diff --cached --quiet || git commit -m "lab data" -q
+          git pull --rebase -q origin pattern-lab && git push -q origin HEAD:pattern-lab
