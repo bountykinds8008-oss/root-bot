@@ -1,15 +1,13 @@
-"""パターン研究用：bitbankの1時間足を全部集めて lab/data/<pair>.csv.gz に保存する（お金は使わない）。
+"""パターン研究用：bitbankの1時間足を集める（お金は使わない）。
 
-  python -m lab.fetch 2018
-
-既に保存済みの日はとばす（途中から再開できる）。
+  python -m lab.fetch part btc_jpy 2021   # 1銘柄・1年分 → lab/data/parts/btc_jpy_2021.csv.gz
+  python -m lab.fetch merge               # parts をまとめて lab/data/<pair>.csv.gz
 """
 import csv
 import gzip
 import sys
 import time
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -23,7 +21,7 @@ def day(pair, d):
     for attempt in range(4):
         try:
             raw = bitbank._http(urllib.request.Request(
-                f"{bitbank.PUBLIC}/{pair}/candlestick/1hour/{d.strftime('%Y%m%d')}"))
+                f"{bitbank.PUBLIC}/{pair}/candlestick/1hour/{d.strftime('%Y%m%d')}"), retries=2)
             return [(int(ts), o, h, l, c, v) for o, h, l, c, v, ts in raw["candlestick"][0]["ohlcv"]]
         except bitbank.BitbankError:
             return []          # その日のデータなし（上場前など）
@@ -33,29 +31,29 @@ def day(pair, d):
     return []
 
 
-def main():
-    y0 = int(sys.argv[1]) if len(sys.argv) > 1 else 2018
-    OUT.mkdir(parents=True, exist_ok=True)
-    end = date.today() - timedelta(days=1)
+def part(pair, year):
+    (OUT / "parts").mkdir(parents=True, exist_ok=True)
+    rows = []
+    d, end = date(year, 1, 1), min(date(year, 12, 31), date.today() - timedelta(days=1))
+    t0 = time.time()
+    while d <= end:
+        rows += day(pair, d)
+        d += timedelta(days=1)
+        time.sleep(0.05)
+    with gzip.open(OUT / "parts" / f"{pair}_{year}.csv.gz", "wt", newline="") as f:
+        csv.writer(f).writerows(rows)
+    print(pair, year, len(rows), "bars", f"{time.time() - t0:.0f}s")
+
+
+def merge():
     for pair in PAIRS:
-        path = OUT / f"{pair}.csv.gz"
         rows = {}
-        if path.exists():
-            with gzip.open(path, "rt") as f:
+        for p in sorted((OUT / "parts").glob(f"{pair}_*.csv.gz")):
+            with gzip.open(p, "rt") as f:
                 for r in csv.reader(f):
-                    if r and r[0] != "ts":
+                    if r:
                         rows[int(r[0])] = r
-        have = {date.fromtimestamp(t / 1000) for t in rows}
-        days, d = [], date(y0, 1, 1)
-        while d <= end:
-            if d not in have or d >= end - timedelta(days=2):
-                days.append(d)
-            d += timedelta(days=1)
-        with ThreadPoolExecutor(max_workers=4) as ex:
-            for res in ex.map(lambda x: day(pair, x), days):
-                for r in res:
-                    rows[r[0]] = list(r)
-        with gzip.open(path, "wt", newline="") as f:
+        with gzip.open(OUT / f"{pair}.csv.gz", "wt", newline="") as f:
             w = csv.writer(f)
             w.writerow(["ts", "open", "high", "low", "close", "volume"])
             for t in sorted(rows):
@@ -64,4 +62,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if sys.argv[1] == "part":
+        part(sys.argv[2], int(sys.argv[3]))
+    else:
+        merge()
