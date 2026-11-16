@@ -6,8 +6,20 @@ bitbank（BTC / ETH / XRP）の自動売買ボットとトレーディング画�
 - 損失上限：月 −20% で全決済 → 翌月に自動再開
 - 標準は **仮想売買**（お金は動かない）。本番は `bot/config.py` の `MODE="live"` と
   GitHub変数 `LIVE_TRADING=yes` の両方がそろったときだけ動く（二重ロック）
-- 15分ごとに GitHub Actions で実行。状態は `data/` に保存
+- GitHub Actions で1時間に2回実行（混雑時は遅れ・抜けがある）。状態は `data/` に保存
 - 画面は `dashboard/`（Vercel、合言葉つき）
+
+## 4人体制（役割分担）
+株リサーチチームと同じ考え方を、暗号資産の自動売買に置き換えたもの。4人ともプログラムで、決まったルールどおりに動く。
+| 役 | 仕事 | 場所 |
+|---|---|---|
+| ① リサーチャー | 価格・出来高・板を集める | `bot/bitbank.py` `bot/run.py` |
+| ② モデルビルダー | 過去データで作戦を比べて選ぶ | `bot/research.py` `bot/anomaly.py` `bot/backtest.py` |
+| ③ 成績レビュアー | ボット自身の成績を毎回検証する（売買はしない） | `bot/review.py` → `data/review.json` |
+| ④ リスクマネージャー | 買う量・損切り・月間の停止を決める | `bot/engine.py` |
+
+③は「正常／注意／要確認」の判定と、本番に進む前の確認表（目安）を出す。売買ルールは変えない。
+文章で読むには `python -m bot.review`。目安の数字は `bot/config.py` の `REVIEW_…`。
 
 ## 構成
 | 場所 | 役割 |

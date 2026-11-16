@@ -23,8 +23,8 @@
   .num{font-variant-numeric:tabular-nums}
   .up{color:var(--up)} .down{color:var(--down)} .gold{color:var(--gold)}
   #desk{position:fixed;inset:0;padding:max(8px,env(safe-area-inset-top)) 8px 8px;display:grid;gap:7px;
-    grid-template-columns:1.35fr 1.65fr 1fr;grid-template-rows:auto auto 1.9fr 1fr;
-    grid-template-areas:"bar bar bar" "tiles tiles tiles" "candle room feed" "equity equity month"}
+    grid-template-columns:1.35fr 1.65fr 1fr;grid-template-rows:auto auto 1.9fr 1fr auto;
+    grid-template-areas:"bar bar bar" "tiles tiles tiles" "candle room feed" "equity equity month" "team team team"}
   .pane{position:relative;background:linear-gradient(180deg,rgba(255,95,199,.05),rgba(139,92,255,.03)),var(--pane);
     border:1px solid rgba(255,95,199,.45);border-radius:6px;overflow:hidden;
     box-shadow:0 0 0 1px rgba(139,92,255,.15) inset,0 0 18px rgba(255,95,199,.12)}
@@ -64,6 +64,20 @@
   .fun .fbar{height:5px;border-radius:3px;background:#24193a;overflow:hidden} .fun .fbar i{display:block;height:100%}
   .fun .why{margin-top:6px;font-size:10px;color:var(--mute);line-height:1.6}
   .fun .why b{color:var(--text);font-weight:600}
+  /* チーム（4人体制） */
+  .team{grid-area:team;padding-bottom:8px}
+  .tm{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:6px 8px 0}
+  .tm .m{background:rgba(255,255,255,.03);border:1px solid rgba(139,92,255,.2);border-radius:5px;padding:6px 8px;min-width:0}
+  .tm .m b{font-size:11px} .tm .m i{font-style:normal;float:right;font-size:11px;font-weight:700}
+  .tm .m small{display:block;color:var(--mute);font-size:9px;margin:1px 0 3px}
+  .tm .m p{font-size:10px;line-height:1.5}
+  .st-ok{color:var(--up)} .st-wait{color:var(--mute)} .st-warn{color:var(--gold)} .st-alert{color:var(--down)}
+  .tmore{display:none;padding:2px 9px 0;font-size:11px;line-height:1.6}
+  .tmore .sec{margin:9px 0 3px}
+  .tmore .c{display:grid;grid-template-columns:14px 1fr;gap:5px;padding:3px 0;border-bottom:1px dashed rgba(154,143,176,.15)}
+  .tmore .c b{font-weight:600} .tmore .c span{color:var(--mute)}
+  .tmore .note{color:var(--mute);font-size:10px;margin-top:7px}
+  body.tv .team{display:none}
   /* テレビ表示（C） */
   body.tv{cursor:none}
   body.tv #desk{grid-template-columns:1.25fr 1fr;grid-template-rows:auto auto 1fr;grid-template-areas:"bar bar" "tiles tiles" "room candle"}
@@ -109,8 +123,10 @@
     .tiles>.tile:nth-child(6){order:3} .tiles>.tile:nth-child(3),.tiles>.tile:nth-child(4),.tiles>.tile:nth-child(5){order:4}
     #desk{position:static;padding:max(8px,env(safe-area-inset-top)) 7px 10px;gap:6px;
       grid-template-columns:1fr;
-      grid-template-rows:auto auto calc(41dvh) calc(37dvh) 300px 200px 360px;
-      grid-template-areas:"bar" "tiles" "room" "candle" "feed" "equity" "month"}
+      grid-template-rows:auto auto calc(41dvh) calc(37dvh) auto 300px 200px 360px;
+      grid-template-areas:"bar" "tiles" "room" "candle" "team" "feed" "equity" "month"}
+    .tm{grid-template-columns:1fr 1fr} .tm .m b{font-size:12px} .tm .m p{font-size:11px} .tm .m small{font-size:10px}
+    .tmore{display:block}
     .bar .logo{font-size:12px;letter-spacing:.16em} .bar .logo small{display:none} .bar .rec{margin-left:6px}
     .bar .tb{padding:2px 7px;font-size:10px} .bar #bTv{display:none} .clock{font-size:10px}
     .tiles{grid-template-columns:repeat(3,1fr);gap:5px}
@@ -145,6 +161,7 @@
   <div class="pane room"><h3>BOT ROOM<span id="roomSub">ビット・イーサ・リプル</span></h3><div class="fill" style="inset:22px 0 0"><canvas id="cvR"></canvas></div></div>
   <div class="pane feed"><h3>実況<span>LOG</span></h3><div class="list"><div class="sec">保有中</div><div id="pos"></div><div class="sec">売買</div><div id="log"></div></div></div>
   <div class="pane equity"><h3>資産の推移<span id="eqSpan">EQUITY</span></h3><div class="fill"><canvas id="cvE"></canvas></div></div>
+  <div class="pane team"><h3>チーム（4人体制）<span id="tmV">—</span></h3><div class="tm" id="tm"></div><div class="tmore" id="tmMore"></div></div>
   <div class="pane month"><h3>成績<span>目標 +5%</span></h3><div class="list" style="mask-image:none"><div class="kpi" id="kpi"></div><div class="fun" id="fun"></div><div id="mon"></div></div></div>
 </div>
 <div class="banner" id="ban"><b id="banK"></b><div class="num" id="banV"></div><small id="banS"></small></div>
@@ -230,7 +247,7 @@ function applyStatus(d){
     mo.state=d.halted?"sleep":d.positions.some(x=>x.pair===p)?"hold":"watch";}
   // 月
   const ms=Object.entries(d.monthly||{}).filter(([,v])=>v.start&&v.end).slice(-6).reverse();
-  renderKpi(d); renderFunnel(d);
+  renderKpi(d); renderFunnel(d); renderTeam(d);
   $("mon").innerHTML="<table>"+ms.map(([k,v])=>{const r=v.end/v.start-1,w=Math.min(60,Math.abs(r)*600);
     return`<tr><td>${k}</td><td><span class="mbar" style="width:${w}px;background:${r>=0?"var(--up)":"var(--down)"}"></span><span class="num ${cls(r)}">${pct(r,1)}</span>${r>=d.target?" ★":""}</td></tr>`}).join("")+"</table>";
 }
@@ -248,6 +265,19 @@ function renderKpi(d){
     cell("停止ラインまで",stop==null?"—":yen(stop),stop!=null&&stop<(ms||0)*.05?"down":"")+
     cell("勝率（通算）",tr?Math.round(w/tr*100)+"%":"—")+
     cell("今月の決済",`${mt.length}回 <span class="${cls(mpnl)}" style="font-size:11px">${mt.length?(mpnl>=0?"+":"")+yen(mpnl):""}</span>`);
+}
+const esc=t=>String(t==null?"":t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const STM={ok:"○",wait:"…",warn:"△",alert:"×"};
+function renderTeam(d){
+  const rv=d.review;
+  if(!rv||!rv.team){$("tmV").textContent="準備中";$("tm").innerHTML=`<div class="m" style="grid-column:1/-1"><p style="color:var(--mute)">ボットの次の実行から、4人それぞれの状況がここに出ます</p></div>`;$("tmMore").innerHTML="";return;}
+  $("tmV").textContent="判定："+rv.verdict; $("tmV").className="st-"+["ok","wait","warn","alert"][rv.level||0];
+  $("tm").innerHTML=rv.team.map(t=>`<div class="m"><i class="st-${esc(t.status)}">${STM[t.status]||""}</i><b>${t.no}. ${esc(t.role)}</b><small>${esc(t.job)}</small><p>${esc(t.line)}</p></div>`).join("");
+  const ck=(rv.checks||[]).map(c=>`<div class="c"><b class="st-${esc(c.status)}">${STM[c.status]||""}</b><div><b>${esc(c.label)}</b> <span>${esc(c.text)}</span></div></div>`).join("");
+  const rd=(rv.readiness||[]).map(r=>`<div class="c"><b class="${r.done?"st-ok":"st-wait"}">${r.done?"☑":"☐"}</b><div><b>${esc(r.label)}</b> <span>いま ${esc(r.now)}</span></div></div>`).join("");
+  $("tmMore").innerHTML=`<div class="sec">検証（${hm(rv.generated)} 時点）</div>${ck}
+    <div class="sec">本番に進む前の確認（目安） ${rv.ready_count}/${(rv.readiness||[]).length}</div>${rd}
+    <div class="note">判定は検証結果の要約です。売買の指示や利益の見込みではありません。</div>`;
 }
 const FNAME={spread:"板が薄い",surge:"急騰しすぎ",volatile:"値動きが荒い",volume:"出来高不足",chase:"直前に価格が逃げた",pause:"連敗中の休憩",funds:"資金不足"};
 function renderFunnel(d){
@@ -660,6 +690,13 @@ function demoStatus(){D.t++;const now=Date.now();
     positions:D.pos.map(q=>({...q})),trades:D.trades.slice(),bot_stats:JSON.parse(JSON.stringify(D.stats)),
     funnel:{[new Date(now+9*36e5).toISOString().slice(0,7)]:{checked:642+D.t,no_setup:571+D.t,filtered:{surge:19,volatile:12,spread:6,volume:0,chase:5,pause:3},entered:26}},
     last_reject:{xrp_jpy:{ts:now-12*6e4,reason:"板が薄い（スプレッド広い）"}},equity_history:D.hist,
+    review:{generated:now,verdict:"正常（データ待ち）",level:1,ready_count:3,
+      team:[{no:1,role:"リサーチャー",job:"価格・出来高・板を集める",status:"ok",line:"BTC・ETH・XRP の価格と足を取得。買い条件に一番近いのは ETH（あと +1.2%）"},
+        {no:2,role:"モデルビルダー",job:"過去データで作戦を比べて選ぶ",status:"ok",line:"128通りを比べて選んだ「4時間足の上抜け買い」（サンプル表示）"},
+        {no:3,role:"成績レビュアー",job:"ボット自身の成績を検証する",status:"wait",line:"判定：正常（データ待ち）"},
+        {no:4,role:"リスクマネージャー",job:"買う量・損切り・停止を決める",status:"ok",line:"保有 1/3・今月の停止ラインまで ¥31,200・1銘柄は資産の最大33%まで"}],
+      checks:[{label:"稼働",status:"ok",text:"実行の間隔は最長 1.2時間（4時間以内）"},{label:"取引の質",status:"wait",text:"決済 34回・勝率 68%（損益分岐 41%）・平均利益÷平均損失 1.45"},{label:"検証との照合",status:"ok",text:"買い 26回（検証からの見込み 24.0回）"}],
+      readiness:[{label:"仮想売買を30日以上",done:true,now:"30日"},{label:"決済を5回以上",done:true,now:"34回"},{label:"実行の間隔が4時間以内",done:true,now:"最長1.2時間"},{label:"落ち込みが検証の範囲内",done:false,now:"サンプル"}]},
     monthly:{"2026-08":{start:100000,end:97800},"2026-09":{start:97800,end:103900},"2026-10":{start:103900,end:115200},[new Date(now+9*36e5).toISOString().slice(0,7)]:{start:D.mstart,end:eq}}});}
 
 /* ================= 起動 ================= */
