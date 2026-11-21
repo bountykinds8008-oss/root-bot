@@ -73,6 +73,25 @@ def candles(pair, candle_type="4hour", days=5):
     return bars
 
 
+def low_since(pair, since_ms, max_days=10):
+    """since_ms 以降に始まった1時間足の最安値（形成中の足も含む）。取れなければ None。
+
+    実行の間隔が空いても、その間に付けた安値で損切りを判定できるようにするためのもの。
+    """
+    now = datetime.now(timezone.utc)
+    start = max(datetime.fromtimestamp(since_ms / 1000, timezone.utc), now - timedelta(days=max_days))
+    day, lows = start.date() - timedelta(days=1), []
+    while day <= now.date() + timedelta(days=1):   # 日付の区切りの違いに備えて前後1日ぶん広めに取る
+        try:
+            d = _http(urllib.request.Request(
+                f"{PUBLIC}/{pair}/candlestick/1hour/{day.strftime('%Y%m%d')}"), retries=1)
+            lows += [float(r[2]) for r in d["candlestick"][0]["ohlcv"] if int(r[5]) >= since_ms]
+        except Exception:
+            pass   # まだ無い日付・一時的な失敗は飛ばす（損切りは現在値でも判定される）
+        day += timedelta(days=1)
+    return min(lows) if lows else None
+
+
 def candles_year(pair, candle_type, year):
     d = _http(urllib.request.Request(f"{PUBLIC}/{pair}/candlestick/{candle_type}/{year}"))
     return [(float(o), float(h), float(l), float(c), float(v), int(ts))

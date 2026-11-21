@@ -56,3 +56,9 @@ USE_LOSS_PAUSE = False
 CHASE_LIMIT = 0.006         # 注文直前の価格が判断時より0.6%超高い → 価格が逃げたので見送り（二次確認）
 LOSS_STREAK_PAUSE = 2       # 同じ銘柄で2連敗したら…
 PAUSE_BARS = 12             # …12時間はその銘柄を休む
+
+# ---- ③成績レビュアー（bot/review.py）の目安。売買ルールには影響しない ----
+REVIEW_STALE_GAP_H = 12             # 実行がこれ以上空いたら「止まっていた可能性」と警告
+REVIEW_MIN_TRADES_FOR_STATS = 30    # 決済がこの回数に届くまでは、勝率などを「まだ偶然と区別できない」と表示
+REVIEW_MIN_DAYS = 30                # 本番に進む前の確認表：仮想売買の最低日数（目安）
+REVIEW_MIN_TRADES = 5               # 本番に進む前の確認表：決済の最低回数（目安）
