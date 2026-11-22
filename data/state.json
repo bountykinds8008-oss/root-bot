@@ -4,9 +4,9 @@
  "positions": {},
  "cooldown_until": {},
  "last_bar_ts": {
-  "btc_jpy": 1795276800000,
-  "eth_jpy": 1795276800000,
-  "xrp_jpy": 1795276800000
+  "btc_jpy": 1795305600000,
+  "eth_jpy": 1795305600000,
+  "xrp_jpy": 1795305600000
  },
  "month": "2026-11",
  "month_start_equity": 100000.0,
@@ -169,6 +169,10 @@
   [
    1795302432007,
    100000.0
+  ],
+  [
+   1795329357958,
+   100000.0
   ]
  ],
  "trades": [],
@@ -180,14 +184,14 @@
  },
  "log": [],
  "last_price": {
-  "btc_jpy": 9536765.0,
-  "eth_jpy": 266517.0,
-  "xrp_jpy": 147.253
+  "btc_jpy": 9359277.0,
+  "eth_jpy": 263172.0,
+  "xrp_jpy": 145.178
  },
  "funnel": {
   "2026-11": {
-   "checked": 108,
-   "no_setup": 108,
+   "checked": 111,
+   "no_setup": 111,
    "filtered": {},
    "entered": 0
   }
