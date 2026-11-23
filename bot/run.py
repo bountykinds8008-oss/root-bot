@@ -1,4 +1,4 @@
-"""1回分の実行（GitHub Actions が15分ごとに呼ぶ）。
+"""1回分の実行（GitHub Actions が定期的に呼ぶ）。
 
   python -m bot.run
 状態は data/state.json、画面用データは data/status.json に保存する。
@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import bitbank, config as C
+from . import bitbank, config as C, review
 from .brokers import LiveBroker, PaperBroker
 from .engine import new_state, step
 
@@ -26,7 +26,7 @@ def load_state():
     return None
 
 
-def save(state, summary, market):
+def save(state, summary, market, rv=None):
     STATE.parent.mkdir(exist_ok=True)
     STATE.write_text(json.dumps(state, ensure_ascii=False, indent=1))
     status = {
@@ -43,7 +43,10 @@ def save(state, summary, market):
         "monthly": state["monthly"], "log": state["log"][-30:],
         "bot_stats": state.get("bot_stats", {}),
         "funnel": state.get("funnel", {}), "last_reject": state.get("last_reject", {}),
+        "review": rv,
     }
+    if rv:
+        review.REVIEW.write_text(json.dumps(rv, ensure_ascii=False, indent=1))
     STATUS.write_text(json.dumps(status, ensure_ascii=False))
     # 公開用コピー：前回から約1時間たったとき、または売買があったときだけ更新
     prev = json.loads(PUBLIC.read_text()) if PUBLIC.exists() else {}
@@ -70,6 +73,7 @@ def main():
             state = new_state(C.PAPER_START_JPY, "paper")
 
     market, prev_low = {}, state.get("last_price", {})
+    last_tick = state["equity_history"][-1][0] if state.get("equity_history") else None
     for pair in C.PAIRS:
         try:
             t = bitbank.ticker(pair)
@@ -78,15 +82,27 @@ def main():
             print(f"[warn] {pair}: {e}", file=sys.stderr)
             continue
         low = min(t["buy"], prev_low.get(pair, t["buy"]))
+        if last_tick and pair in state["positions"]:
+            # 前回の実行からの間に付けた安値でも損切りを判定する（実行の間隔が空いても見逃さない）
+            between = bitbank.low_since(pair, last_tick)
+            if between is not None:
+                low = min(low, between)
         market[pair] = {"bars": bars, "bid": t["buy"], "ask": t["sell"], "low": low}
     state["last_price"] = {p: m["bid"] for p, m in market.items()}
 
     now = int(time.time() * 1000)
     summary = step(state, broker, market, now)
-    save(state, summary, market)
+    try:   # ③成績レビュアー。ここで失敗しても売買の記録は必ず保存する
+        rv = review.build(state, market, now, review.load_json(review.RESEARCH),
+                          review.load_json(review.BACKTEST))
+    except Exception as e:
+        print(f"[warn] review: {e}", file=sys.stderr)
+        rv = None
+    save(state, summary, market, rv)
     print(json.dumps({"mode": state["mode"], "equity": round(summary["equity"]),
                       "month_return": f"{summary['month_ret']:.2%}",
-                      "halted": summary["halted"], "positions": list(state["positions"])},
+                      "halted": summary["halted"], "positions": list(state["positions"]),
+                      "review": rv["verdict"] if rv else None},
                      ensure_ascii=False))
 
 
