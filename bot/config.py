@@ -7,6 +7,10 @@ PAIRS = ["btc_jpy", "eth_jpy", "xrp_jpy"]
 # live にするには、さらに環境変数 LIVE_TRADING=yes が必要（二重ロック）
 MODE = "paper"
 
+# 本番でボットが使ってよいお金の上限（円）。口座にこれ以上あっても、この額の中だけで売買する
+# 最初は少額で。慣れてから少しずつ上げる。None で上限なし（おすすめしない）
+LIVE_MAX_JPY = 30_000
+
 # 仮想売買の開始資金（円）
 PAPER_START_JPY = 100_000
 
@@ -58,3 +62,8 @@ USE_LOSS_PAUSE = False
 CHASE_LIMIT = 0.006         # 注文直前の価格が判断時より0.6%超高い → 価格が逃げたので見送り（二次確認）
 LOSS_STREAK_PAUSE = 2       # 同じ銘柄で2連敗したら…
 PAUSE_BARS = 12             # …12時間はその銘柄を休む
+
+# ---- スマホ通知（ntfy）----
+# ntfyアプリ（無料）で下のトピック名を購読すると、売買・停止・目標達成が届く。空にすると通知しない
+NOTIFY_TOPIC = "rootbot-bd687493bb9c0761"
+DASHBOARD_URL = "https://root-bot-dashboard.vercel.app/desk"

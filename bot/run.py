@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import bitbank, config as C
+from . import bitbank, config as C, notify
 from .brokers import LiveBroker, PaperBroker
 from .engine import new_state, step
 
@@ -45,6 +45,9 @@ def save(state, summary, market):
         "funnel": state.get("funnel", {}), "last_reject": state.get("last_reject", {}),
         "catchup_bars": state.get("catchup_bars", 0),   # 実行の遅れで後追い処理した足の数（通算）
         "version": "v3",
+        "runs": state.get("runs", [])[-200:],               # 実行した時刻（今日の振り返り用）
+        "started_at": state.get("started_at"),              # 仮想売買を始めた時刻（本番準備の確認用）
+        "live_max_jpy": C.LIVE_MAX_JPY,
     }
     STATUS.write_text(json.dumps(status, ensure_ascii=False))
     # 公開用コピー：前回から約1時間たったとき、または売買があったときだけ更新
@@ -82,10 +85,21 @@ def main():
         low = min(t["buy"], prev_low.get(pair, t["buy"]))
         market[pair] = {"bars": bars, "bid": t["buy"], "ask": t["sell"], "low": low}
     state["last_price"] = {p: m["bid"] for p, m in market.items()}
+    if not state.get("started_at"):
+        eh = state.get("equity_history") or []
+        state["started_at"] = eh[0][0] if eh else int(time.time() * 1000)
 
     now = int(time.time() * 1000)
+    before = {"n_trades": len(state["trades"]), "last_ts": max([t["ts"] for t in state["trades"]] or [0]),
+              "halted": state.get("was_halted", False), "defensive": state.get("was_defensive", False)}
     summary = step(state, broker, market, now)
+    state["was_halted"], state["was_defensive"] = summary["halted"], summary["defensive"]
+    runs = [r for r in state.get("runs", []) if r > now - 7 * 864e5] + [now]   # 実行の記録（振り返り用・7日分）
+    state["runs"] = runs[-400:]
     save(state, summary, market)
+    if os.environ.get("ROOT_BOT_NOTIFY", "yes") == "yes":
+        notify.trades([t for t in state["trades"] if t["ts"] > before["last_ts"]], state["mode"], summary["equity"])
+        notify.events(before, state, summary)
     print(json.dumps({"mode": state["mode"], "equity": round(summary["equity"]),
                       "month_return": f"{summary['month_ret']:.2%}",
                       "halted": summary["halted"], "positions": list(state["positions"])},

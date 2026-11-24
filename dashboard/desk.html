@@ -142,6 +142,24 @@
   .vf .note{font-size:9px;color:var(--mute);display:flex;justify-content:space-between}
   .tag.late{outline:1px dashed var(--gold);outline-offset:1px}
   .lt{color:var(--gold);font-size:9px;border:1px solid rgba(255,198,92,.5);border-radius:3px;padding:0 3px;margin-left:3px}
+  /* 成績パネルのタブ */
+  .mtabs{display:flex;gap:4px} .mtabs button{font:inherit;font-size:10px;letter-spacing:.08em;background:none;border:1px solid rgba(139,92,255,.35);
+    color:var(--mute);border-radius:5px;padding:1px 8px;cursor:pointer} .mtabs button.on{color:#1a0716;background:var(--edge);border-color:var(--edge);font-weight:700}
+  .pane.month>h3{justify-content:flex-start}
+  .td-head{font-size:12px;line-height:1.6;padding:6px 8px;border-radius:6px;background:rgba(139,92,255,.08);border:1px solid rgba(139,92,255,.25);margin-bottom:8px}
+  .td-head b{color:#fff}
+  .td-row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed rgba(154,143,176,.18);font-size:11px}
+  .td-row span:first-child{color:var(--mute)}
+  .ck{display:grid;grid-template-columns:20px 1fr;gap:6px;padding:6px 0;border-bottom:1px dashed rgba(154,143,176,.18);font-size:11px;line-height:1.5}
+  .ck i{font-style:normal;text-align:center} .ck small{display:block;color:var(--mute);font-size:10px}
+  .ck input{accent-color:var(--edge);width:14px;height:14px;margin-top:2px}
+  .rd-bar{height:6px;border-radius:9px;background:#24193a;overflow:hidden;margin:4px 0 8px} .rd-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--edge2),var(--up))}
+  /* 通知の設定 */
+  .nt ol{margin:10px 0 12px 18px;font-size:13px;line-height:1.7;list-style:decimal}
+  .nt ol li{margin-bottom:6px;padding:4px 0 4px 2px;border:none} .nt ol li span{position:static;font-size:inherit}
+  .nt .tp{display:flex;gap:6px;align-items:center;background:#05030a;border:1px solid var(--edge2);border-radius:8px;padding:8px 10px;font:13px ui-monospace,monospace;margin:4px 0 2px;word-break:break-all}
+  .nt .tp span{flex:1;min-width:0} .nt .tp button{width:auto!important;margin-left:auto;flex-shrink:0;font:inherit;font-size:11px;background:var(--edge);color:#1a0716;border:none;border-radius:6px;padding:4px 9px;font-weight:700}
+  .nt .x2{width:100%;padding:11px;border-radius:9px;border:1px solid var(--line,rgba(154,143,176,.3));background:none;color:var(--text);font:inherit;margin-top:6px}
   /* v3：お知らせ */
   .news{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;background:rgba(5,3,10,.72);backdrop-filter:blur(4px)}
   .news.show{display:flex}
@@ -167,7 +185,7 @@
 </head>
 <body>
 <div id="desk">
-  <div class="bar"><div class="logo">ROOT BOT DESK<small id="mode">PAPER</small><span class="rec"><i></i>LIVE</span></div><div style="display:flex;align-items:center;gap:8px"><span class="hb" id="hb"><i></i><span id="hbT">確認中</span></span><a class="tb" href="/portfolio">資産一覧</a><button class="tb" id="bSnd" title="売買の音">🔇 音</button><button class="tb" id="bTv" title="テレビ表示">📺 TV</button><div class="clock num" id="clock"></div></div></div>
+  <div class="bar"><div class="logo">ROOT BOT DESK<small id="mode">PAPER</small><span class="rec"><i></i>LIVE</span></div><div style="display:flex;align-items:center;gap:8px"><span class="hb" id="hb"><i></i><span id="hbT">確認中</span></span><a class="tb" href="/portfolio">資産一覧</a><button class="tb" id="bNt" title="スマホ通知">🔔</button><button class="tb" id="bSnd" title="売買の音">🔇 音</button><button class="tb" id="bTv" title="テレビ表示">📺 TV</button><div class="clock num" id="clock"></div></div></div>
   <div class="tiles">
     <div class="pane tile"><div class="k">総資産<span>EQUITY</span></div><div class="v num" id="tEq">—</div><div class="s num" id="tEqS">—</div></div>
     <div class="pane tile"><div class="k">今月<span>MONTH</span></div><div class="v num" id="tM">—</div><div class="bar2"><i id="tMb"></i></div></div>
@@ -185,9 +203,23 @@
     <div class="cv"><canvas id="cvV"></canvas></div>
     <div class="mstrip" id="vfM"></div>
     <div class="note"><span id="vfN">—</span><span>★＝月+5%達成</span></div></div></div>
-  <div class="pane month"><h3>成績<span>目標 +5%</span></h3><div class="list" style="mask-image:none"><div class="kpi" id="kpi"></div><div class="fun" id="fun"></div><div id="mon"></div></div></div>
+  <div class="pane month"><h3><span class="mtabs"><button data-mt="stats" class="on">成績</button><button data-mt="today">今日</button><button data-mt="ready">本番準備</button></span></h3>
+    <div class="list" style="mask-image:none" id="mt_stats"><div class="kpi" id="kpi"></div><div class="fun" id="fun"></div><div id="mon"></div></div>
+    <div class="list" style="mask-image:none;overflow:auto" id="mt_today" hidden><div id="today"></div></div>
+    <div class="list" style="mask-image:none;overflow:auto" id="mt_ready" hidden><div id="ready"></div></div></div>
 </div>
 <div class="hbpop" id="hbp"></div>
+<div class="news nt" id="ntBox"><div class="card"><div class="ver">NOTIFICATIONS</div><h2>スマホに通知を届ける</h2>
+  <p style="font-size:12px;color:var(--mute);margin-top:6px">ボットが買った・売った・損切りした・停止した・目標を達成した、をその場でお知らせします。</p>
+  <ol>
+    <li>App Store で <b>「ntfy」</b>（無料）をインストール</li>
+    <li>ntfyを開いて <b>右上の「＋」</b> をタップ</li>
+    <li>「Topic」に下の名前を貼り付けて <b>Subscribe</b>
+      <div class="tp"><span id="ntTopic">rootbot-bd687493bb9c0761</span><button id="ntCopy">コピー</button></div></li>
+    <li>通知の許可を聞かれたら <b>「許可」</b></li>
+  </ol>
+  <p style="font-size:11px;color:var(--mute)">終わったらClaudeに「通知テスト」と伝えると、テスト通知を送ります。</p>
+  <button class="x2" id="ntX">閉じる</button></div></div>
 <div class="news" id="news"><div class="card"><div class="ver">ROOT BOT v3</div><h2>新しくなりました</h2><ul>
   <li><span>⏩</span><b>見逃さない</b><small>実行が遅れても、飛ばした4時間足をさかのぼって全部判断します（取引に「後追い」と表示）</small></li>
   <li><span>🛡️</span><b>損切りを取引所に置く</b><small>本番では取引所が損切りを見張るので、ボットが止まっても守れます</small></li>
@@ -281,7 +313,7 @@ function applyStatus(d){
     mo.state=d.halted?"sleep":d.positions.some(x=>x.pair===p)?"hold":"watch";}
   // 月
   const ms=Object.entries(d.monthly||{}).filter(([,v])=>v.start&&v.end).slice(-6).reverse();
-  renderKpi(d); renderFunnel(d);
+  renderKpi(d); renderFunnel(d); renderToday(); renderReady();
   $("mon").innerHTML="<table>"+ms.map(([k,v])=>{const r=v.end/v.start-1,w=Math.min(60,Math.abs(r)*600);
     return`<tr><td>${k}</td><td><span class="mbar" style="width:${w}px;background:${r>=0?"var(--up)":"var(--down)"}"></span><span class="num ${cls(r)}">${pct(r,1)}</span>${r>=d.target?" ★":""}</td></tr>`}).join("")+"</table>";
 }
@@ -707,6 +739,7 @@ function renderBacktest(){
   const mx=Math.max(.05,...b.months.map(m=>Math.abs(m.return)));
   $("vfM").innerHTML=b.months.map(m=>{const r=m.return,h=Math.max(2,Math.abs(r)/mx*30);
     return`<i class="${r>=0.05?"hit":""}" title="${m.month} ${pct(r,1)}" style="height:${h}px;background:${r>0?"var(--up)":r<0?"var(--down)":"#4a3f66"};opacity:${r===0?.5:1}"></i>`}).join("");
+  renderReady();
   $("vfN").textContent=`取引${b.trades}回・プラス月${b.months.filter(m=>m.return>0).length}／マイナス月${b.months_negative}`;
   drawBacktest();
 }
@@ -729,6 +762,68 @@ loadBacktest(); setInterval(loadBacktest,30*60000);
 (()=>{ if(store.get("rb_news")==="v3"||new URLSearchParams(location.search).has("tv"))return;
   setTimeout(()=>$("news").classList.add("show"),900);
   $("newsX").onclick=()=>{$("news").classList.remove("show");store.set("rb_news","v3");};})();
+
+/* ================= 成績パネルのタブ（成績・今日・本番準備） ================= */
+let MT=store.get("rb_mt")||"stats";
+function setMt(t){MT=t;store.set("rb_mt",t);document.querySelectorAll(".mtabs button").forEach(b=>b.classList.toggle("on",b.dataset.mt===t));
+  ["stats","today","ready"].forEach(k=>$("mt_"+k).hidden=k!==t);renderToday();renderReady();}
+document.querySelectorAll(".mtabs button").forEach(b=>b.onclick=()=>setMt(b.dataset.mt)); setMt(MT);
+
+function renderToday(){
+  const d=S.status; if(!d||MT!=="today")return;
+  const now=Date.now(), day=now-864e5, eh=d.equity_history||[];
+  const past=eh.find(r=>r[0]>=day)||eh[0], ch=past?d.equity-past[1]:0, chp=past&&past[1]?d.equity/past[1]-1:0;
+  const tr=d.trades.filter(t=>t.ts>=day), sells=tr.filter(t=>t.side==="sell"), pnl=sells.reduce((a,t)=>a+(t.pnl||0),0);
+  const runs=(d.runs||[]).filter(t=>t>=day).sort((a,b)=>a-b);
+  let gap=0; for(let i=1;i<runs.length;i++)gap=Math.max(gap,runs[i]-runs[i-1]); if(runs.length)gap=Math.max(gap,now-runs[runs.length-1]);
+  const near=PAIRS.map(p=>({p,j:judge(p)})).filter(x=>x.j&&!d.positions.some(q=>q.pair===x.p)).sort((a,b)=>a.j.dist-b.j.dist)[0];
+  // ひとことまとめ
+  let say;
+  if(d.halted)say="今月は損失上限に届いたので<b>停止中</b>です。翌月に自動で再開します。";
+  else if(tr.length)say=`この24時間で<b>${tr.length}回</b>売買しました`+(sells.length?`（決済の損益 <b class="${cls(pnl)}">${pnl>=0?"+":""}${yen(pnl)}</b>）`:"")+"。";
+  else say="この24時間は<b>売買なし</b>。買う条件がそろうのを待っています。";
+  if(d.positions.length)say+=` いま<b>${d.positions.map(q=>SYM[q.pair]).join("・")}</b>を保有中。`;
+  else if(near)say+=` いちばん近いのは<b>${SYM[near.p]}</b>（上抜けまで ${pct(near.j.dist,1)}）。`;
+  const row=(k,v)=>`<div class="td-row"><span>${k}</span><span class="num">${v}</span></div>`;
+  $("today").innerHTML=`<div class="td-head">${say}</div>`+
+    row("総資産（24時間の増減）",`${yen(d.equity)}　<span class="${cls(ch)}">${ch>=0?"+":""}${yen(ch)}（${pct(chp)}）</span>`)+
+    row("売買",tr.length?tr.map(t=>`<span class="${t.side==="buy"?"up":"down"}">${t.side==="buy"?"買":"売"}</span>${SYM[t.pair]}`).join(" "):"なし")+
+    row("ボットの実行",`${runs.length}回・最大の間隔 ${runs.length?Math.round(gap/36e5*10)/10+"時間":"—"}`)+
+    row("後追いで処理した足（通算）",`${(d.catchup_bars||0).toLocaleString()}本`)+
+    row("次の4時間足の確定",cd(Math.ceil(now/BAR4)*BAR4-now).slice(0,-3))+
+    `<div style="font-size:10px;color:var(--mute);margin-top:6px">毎晩1時41分ごろ、Claudeからも詳しいレポートが届きます。</div>`;
+}
+function renderReady(){
+  const d=S.status; if(!d||MT!=="ready")return;
+  const now=Date.now(), days=d.started_at?(now-d.started_at)/864e5:0;
+  const sells=(d.bot_stats?Object.values(d.bot_stats).reduce((a,v)=>a+(v.trades||0),0):d.trades.filter(t=>t.side==="sell").length);
+  const tot=d.equity/d.total_start_equity-1, bt=S.bt;
+  const runs=(d.runs||[]).filter(t=>t>=now-864e5).sort((a,b)=>a-b); let gap=0; for(let i=1;i<runs.length;i++)gap=Math.max(gap,runs[i]-runs[i-1]);
+  const man=k=>store.get("rb_ready_"+k)==="1";
+  const items=[
+    {ok:days>=30,t:"仮想売買を30日以上続ける",s:`いま ${Math.floor(days)}日目`},
+    {ok:sells>=10,t:"仮想売買で10回以上決済する",s:`いま ${sells}回（相場しだいで時間がかかります）`},
+    {ok:tot>-0.10,t:"仮想売買の通算が−10%より悪くない",s:`いま ${pct(tot)}`},
+    {ok:bt&&bt.total_return>0,t:"今の作戦の過去データ検証が通算プラス",s:bt?`${pct(bt.total_return,1)}（${(bt.period||"").replace(/-/g,"/")}）`:"読み込み中"},
+    {ok:runs.length>=3&&gap<8*36e5,t:"ボットが安定して動いている",s:`24時間で${runs.length}回・最大の間隔 ${Math.round(gap/36e5*10)/10}時間`},
+    {k:"notify",ok:man("notify"),t:"スマホ通知を設定した",s:"右上の🔔から"},
+    {k:"apikey",ok:man("apikey"),t:"bitbankで本番用APIキーを作った",s:"権限は「参照」と「取引」だけ。出金は絶対に付けない"},
+    {k:"amount",ok:man("amount"),t:`最初の上限額 ${d.live_max_jpy?yen(d.live_max_jpy):"—"} で納得した`,s:"ボットはこの額の中だけで売買します（あとで変更可）"},
+  ];
+  const n=items.filter(i=>i.ok).length;
+  $("ready").innerHTML=`<div class="td-head">本番（実際のお金）に進む前の確認です。<b>${n}/${items.length}</b> そろっています。${n===items.length?"<br><b class='up'>準備完了。Claudeに「本番開始」と伝えてください。</b>":""}</div>
+    <div class="rd-bar"><i style="width:${n/items.length*100}%"></i></div>`+
+    items.map(i=>`<label class="ck">${i.k?`<input type="checkbox" data-k="${i.k}" ${i.ok?"checked":""}>`:`<i>${i.ok?"✅":"⬜"}</i>`}<span>${i.t}<small>${i.s}</small></span></label>`).join("");
+  $("ready").querySelectorAll("input[data-k]").forEach(c=>c.onchange=()=>{store.set("rb_ready_"+c.dataset.k,c.checked?"1":"0");renderReady();});
+}
+setInterval(()=>{renderToday();},30000);
+
+/* ================= 通知の設定 ================= */
+$("bNt").onclick=()=>$("ntBox").classList.add("show");
+$("ntX").onclick=()=>$("ntBox").classList.remove("show");
+$("ntCopy").onclick=async()=>{try{await navigator.clipboard.writeText($("ntTopic").textContent);$("ntCopy").textContent="コピーしました";}
+  catch{const r=document.createRange();r.selectNodeContents($("ntTopic"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("ntCopy").textContent="選択しました";}
+  store.set("rb_ready_notify","1");setTimeout(()=>$("ntCopy").textContent="コピー",2000);};
 
 /* ================= ループ ================= */
 let last=performance.now();

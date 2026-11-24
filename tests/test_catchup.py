@@ -208,6 +208,14 @@ class LiveBrokerTest(unittest.TestCase):
         self.assertAlmostEqual(fp.btc, 0.0)
         self.assertEqual(fp.locked, 0.0)
 
+    def test_live_cap_limits_budget(self):
+        fp = FakePrivate()          # 口座には10万円
+        br = LiveBroker(fp)
+        state = new_state(0, "live")
+        self.assertEqual(br.cash(state), C.LIVE_MAX_JPY)
+        state["positions"]["btc_jpy"] = {"amount": 0.001, "entry": 10_000_000}
+        self.assertEqual(br.cash(state), C.LIVE_MAX_JPY - 10_000)
+
     def test_small_amount_has_no_exponent(self):
         br = LiveBroker(FakePrivate())
         self.assertEqual(br._amt_s("btc_jpy", br._amt("btc_jpy", 0.00005678)), "0.0000")

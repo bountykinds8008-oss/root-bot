@@ -75,13 +75,18 @@ class LiveBroker:
         self._checked = {}
 
     def cash(self, state):
-        return self.bal.get("jpy", 0.0)
+        """ボットが使える円。口座の残高と「上限（LIVE_MAX_JPY）−保有中の買値合計」の小さいほう。"""
+        jpy = self.bal.get("jpy", 0.0)
+        if C.LIVE_MAX_JPY is None:
+            return jpy
+        used = sum(p["amount"] * p["entry"] for p in (state or {}).get("positions", {}).values())
+        return max(0.0, min(jpy, C.LIVE_MAX_JPY - used))
 
     def min_order_jpy(self, pair):
         return 1000
 
     def equity(self, state, market):
-        eq = self.bal.get("jpy", 0.0)
+        eq = self.cash(state)
         for pair, pos in state["positions"].items():
             px = market[pair]["bid"] if pair in market else pos["entry"]
             eq += pos["amount"] * px

@@ -71,6 +71,7 @@ async function refresh() {
     last.at = Date.now();
     store.set("rb_pf_last", JSON.stringify(last));
     const ng = conns.filter(c => last.results[c.id]?.state).length;
+    if (!ng) record();
     $("status").textContent = `更新 ${hm(last.at)}・60秒ごとに自動更新` + (ng ? `・${ng}件うまく取れませんでした` : "");
   } catch {
     $("status").textContent = "通信できませんでした。表示は前回の値です。";
@@ -145,8 +146,94 @@ function render() {
   const parts = top.map(a => ({ s: a.s, v: a.jpy, c: colorOf(a.s) }));
   if (rest > 0) parts.push({ s: "その他", v: rest, c: "#4a3f66" });
   donut.to(parts);
+  renderHist();
   $("legend").innerHTML = parts.map(p => `<span><i style="background:${p.c}"></i>${esc(p.s)} ${total ? (p.v / total * 100).toFixed(1) : 0}%</span>`).join("");
 }
+
+// ---------------- 資産の推移（この端末に記録） ----------------
+// 全部の口座が取れたときだけ記録する（一部だけの合計を混ぜない）。
+// つなぐ先が変わると合計の意味が変わるので、つなぎ先の組み合わせ（sig）も一緒に残す。
+let hist = store.json("rb_pf_hist", []);          // [[時刻, 合計, sig], ...]
+let range = +store.get("rb_pf_rng", "30");
+const sigOf = () => conns.map(c => c.id).sort().join(",");
+function totalNow() {
+  const rates = last.quotes?.rates || {}; let t = 0;
+  for (const c of conns) for (const r of last.results[c.id]?.rows || []) t += r.qty * (r.symbol === "JPY" ? 1 : rates[r.symbol] || 0);
+  return t;
+}
+function record() {
+  const now = Date.now(), t = totalNow(), sig = sigOf();
+  if (!(t > 0)) return;
+  const prev = hist[hist.length - 1];
+  if (prev && now - prev[0] < 10 * 60e3 && prev[2] === sig) hist[hist.length - 1] = [now, t, sig];   // 10分以内は上書き
+  else hist.push([now, t, sig]);
+  // 2日より前は1日1点（その日の最後）に間引く。最大3年分
+  const cut = now - 2 * 864e5, keep = [], seen = new Map();
+  for (const h of hist) {
+    if (h[0] >= cut) { keep.push(h); continue; }
+    const day = new Date(h[0] + 9 * 36e5).toISOString().slice(0, 10);
+    seen.set(day, h);
+  }
+  hist = [...seen.values(), ...keep].sort((a, b) => a[0] - b[0]).slice(-1500);
+  store.set("rb_pf_hist", JSON.stringify(hist));
+}
+function renderHist() {
+  const sig = sigOf(), now = Date.now();
+  $("histCard").hidden = hist.length < 1 || !conns.length;
+  if ($("histCard").hidden) return;
+  const cur = totalNow() || hist[hist.length - 1][1];
+  const ref = since => { let r = null; for (const h of hist) if (h[2] === sig && h[0] <= since) r = h; return r; };
+  const firstSame = hist.find(h => h[2] === sig);
+  const d1 = ref(now - 864e5), mStart = new Date(new Date(now + 9 * 36e5).toISOString().slice(0, 8) + "01T00:00:00+09:00").getTime();
+  const m1 = ref(mStart) || (firstSame && firstSame[0] >= mStart ? firstSame : null);
+  const cell = (k, base) => {
+    if (!base) return `<div><small>${k}</small><b class="mute">記録中</b></div>`;
+    const d = cur - base[1], p = d / base[1];
+    return `<div><small>${k}</small><b class="num ${d > 0 ? "up" : d < 0 ? "down" : ""}">${d >= 0 ? "+" : ""}${yen(d)}</b><small class="num">${(p >= 0 ? "+" : "") + (p * 100).toFixed(2)}%</small></div>`;
+  };
+  $("hk").innerHTML = cell("前日比", d1) + cell("今月", m1) + cell("記録してから", firstSame && firstSame !== hist[hist.length - 1] ? firstSame : null);
+  const from = range ? now - range * 864e5 : 0;
+  const pts = hist.filter(h => h[0] >= from);
+  drawHist(pts, sig);
+  const days = hist.length ? Math.max(1, Math.round((now - hist[0][0]) / 864e5)) : 0;
+  $("hn").textContent = `この端末で開いたときに記録しています（${days}日分・${hist.length}点）。` +
+    (pts.some(h => h[2] !== sig) ? "点線の区切りは、つなぐ先を変えた時点です。" : "");
+}
+const HC = $("hist");
+function drawHist(pts, sig) {
+  const d = Math.min(4, devicePixelRatio || 1), r = HC.getBoundingClientRect(), x = HC.getContext("2d");
+  if (HC.width !== Math.round(r.width * d) || HC.height !== Math.round(r.height * d)) { HC.width = Math.round(r.width * d); HC.height = Math.round(r.height * d); }
+  x.setTransform(d, 0, 0, d, 0, 0); const W = r.width, H = r.height; x.clearRect(0, 0, W, H);
+  x.lineJoin = x.lineCap = "round";
+  if (pts.length < 2) { x.fillStyle = "#9a8fb0"; x.font = "12px -apple-system,sans-serif"; x.fillText("記録がたまるとグラフになります", 6, H / 2); return; }
+  const t0 = pts[0][0], t1 = pts[pts.length - 1][0], v = pts.map(p => p[1]);
+  let lo = Math.min(...v), hi = Math.max(...v); const pd = (hi - lo || hi * .01) * .12; lo -= pd; hi += pd;
+  const X = t => 4 + (t - t0) / (t1 - t0 || 1) * (W - 70), Y = q => 6 + (1 - (q - lo) / (hi - lo)) * (H - 20);
+  x.font = "10px ui-monospace,monospace"; x.fillStyle = "#6d6385";
+  for (let k = 0; k <= 3; k++) { const q = lo + (hi - lo) * k / 3, y = Math.round(Y(q) * d) / d + .5 / d;
+    x.strokeStyle = "rgba(139,92,255,.16)"; x.lineWidth = 1 / d; x.beginPath(); x.moveTo(0, y); x.lineTo(W - 64, y); x.stroke();
+    x.fillText(yen(q).replace("¥", ""), W - 60, y + 3); }
+  const P = pts.map(p => [X(p[0]), Y(p[1])]);
+  const curve = (a, move = true) => { move ? x.moveTo(a[0][0], a[0][1]) : x.lineTo(a[0][0], a[0][1]);
+    for (let i = 1; i < a.length - 1; i++) x.quadraticCurveTo(a[i][0], a[i][1], (a[i][0] + a[i + 1][0]) / 2, (a[i][1] + a[i + 1][1]) / 2);
+    x.lineTo(a[a.length - 1][0], a[a.length - 1][1]); };
+  const up = v[v.length - 1] >= v[0], col = up ? "#3ff2b5" : "#ff5577", rgb = up ? "63,242,181" : "255,85,119";
+  const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, `rgba(${rgb},.28)`); g.addColorStop(1, `rgba(${rgb},0)`);
+  x.beginPath(); curve(P); x.lineTo(P[P.length - 1][0], H); x.lineTo(P[0][0], H); x.fillStyle = g; x.fill();
+  x.beginPath(); curve(P); x.strokeStyle = col; x.lineWidth = 1.8; x.shadowColor = col; x.shadowBlur = 8; x.stroke(); x.shadowBlur = 0;
+  for (let i = 1; i < pts.length; i++) if (pts[i][2] !== pts[i - 1][2]) {        // つなぐ先を変えた所
+    x.setLineDash([3, 4]); x.strokeStyle = "rgba(255,198,92,.6)"; x.lineWidth = 1; x.beginPath(); x.moveTo(P[i][0], 4); x.lineTo(P[i][0], H - 12); x.stroke(); x.setLineDash([]); }
+  const l = P[P.length - 1]; x.fillStyle = "#fff"; x.beginPath(); x.arc(l[0], l[1], 3, 0, 7); x.fill();
+  x.fillStyle = "#6d6385"; x.font = "10px ui-monospace,monospace";
+  const lab = t => range === 1 ? hm(t) : new Date(t + 9 * 36e5).toISOString().slice(5, 10).replace("-", "/");
+  x.fillText(lab(t0), 4, H - 2); x.textAlign = "right"; x.fillText(lab(t1), W - 66, H - 2); x.textAlign = "left";
+}
+document.querySelectorAll("#rng button").forEach(b => {
+  b.classList.toggle("on", +b.dataset.r === range);
+  b.onclick = () => { range = +b.dataset.r; store.set("rb_pf_rng", String(range));
+    document.querySelectorAll("#rng button").forEach(z => z.classList.toggle("on", z === b)); renderHist(); };
+});
+addEventListener("resize", () => renderHist());
 
 // 合計の数字はなめらかに数え上げる
 let raf = 0;

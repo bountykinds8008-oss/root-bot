@@ -1,0 +1,19 @@
+name: 通知のテスト
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: [".github/notify-test-request"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: テスト通知を送る
+        run: python -c "from bot import notify; notify.send('🔔 ROOT BOT 通知テスト', 'この通知が届いていれば設定は完了です。売買・損切り・停止・目標達成をお知らせします。', tags=['bell'])"
