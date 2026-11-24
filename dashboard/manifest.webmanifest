@@ -1,17 +1,31 @@
 {
-  "name": "ROOT BOT DESK",
-  "short_name": "ROOT BOT",
-  "description": "bitbank自動売買ボットのライブ画面",
+  "name": "ROOT ポートフォリオ",
+  "short_name": "ROOT 資産",
+  "description": "資産と相場の一覧",
   "lang": "ja",
-  "start_url": "/desk?source=app",
+  "start_url": "/portfolio?source=app",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0a0612",
   "theme_color": "#0a0612",
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
-  ]
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "id": "/desk?source=app"
 }
