@@ -36,4 +36,4 @@ jobs:
           mkdir -p dashboard/data && cp data/backtest.json dashboard/data/backtest.json
           git add data/backtest.json dashboard/data/backtest.json
           git diff --cached --quiet || git commit -m "backtest result" -q
-          git pull --rebase -q && git push -q
+          for i in 1 2 3 4 5; do git pull --rebase -q && git push -q && break; sleep $((i*5)); done
