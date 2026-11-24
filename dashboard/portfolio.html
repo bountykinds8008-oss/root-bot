@@ -2,7 +2,7 @@
 <title>資産一覧 | ROOT BOT</title><style>
 *{box-sizing:border-box}body{background:#0d0915;color:#eee8fb;font:16px/1.6 system-ui;margin:auto;padding:20px;max-width:680px}a{color:#c4acff}header,.row{display:flex;justify-content:space-between;align-items:center;gap:12px}section{padding:18px;background:#1d162b;border-radius:14px;margin:14px 0}h1,h2,p{margin:0}h2{font-size:17px}strong{font-size:36px}small{color:#c3b8d4}button,input{font:inherit;padding:7px;border-radius:7px}form{margin-top:16px}.row{padding:9px 0;border-bottom:1px solid #43364f}
 </style><header><a href="/desk">← ROOT BOT</a><button id="refresh">更新</button></header><h1>資産一覧</h1>
-<form id="login" hidden><label>ROOT BOTの合言葉 <input id="password" type="password" required></label><button>開く</button></form>
+<form id="wallet"><label>MetaMaskの公開アドレス <input id="address" placeholder="0x…" pattern="0x[0-9a-fA-F]{40}" autocomplete="off"></label><button>反映</button></form>
 <p id="status" role="status"></p><main hidden><section><h2 id="label"></h2><strong id="total"></strong><p id="quote"></p></section>
 <section><h2>口座別</h2><div id="accounts"></div></section><section><h2>銘柄別</h2><div id="assets"></div></section>
 <small>MetaMaskはEthereumメインネットのETHが対象です。構成比は円換算できた資産から計算します。</small></main>
