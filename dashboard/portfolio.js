@@ -2,7 +2,8 @@ const $ = id => document.getElementById(id);
 const main = document.querySelector('main');
 const yen = n => Math.round(n).toLocaleString('ja-JP') + ' 円';
 const stamp = t => new Date(t).toLocaleString('ja-JP');
-let pass = localStorage.getItem('rb_pass') || '';
+$('address').value = localStorage.getItem('rb_eth_address') || '';
+const pass = localStorage.getItem('rb_pass') || '';
 let cache = {}, busy = false;
 function line(parent, title, detail) {
   const row = document.createElement('div');
@@ -53,21 +54,24 @@ function render(data) {
 }
 async function refresh() {
   if (busy) return;
-  if (!pass) { $('login').hidden = false; return; }
-  busy = true; $('refresh').disabled = true;
+  busy = true; $('wallet').querySelector('button').disabled = true; $('refresh').disabled = true;
   try {
-    const response = await fetch('/api/portfolio',{headers:{'x-dash-pass':pass}, cache:'no-store'});
-    if (response.status === 401) {
-      main.hidden = true; cache = {}; pass = ''; $('login').hidden = false; $('status').textContent = '合言葉を確認してください。'; return;
-    }
+    const response = await fetch('/api/portfolio?'+new URLSearchParams({address:localStorage.getItem('rb_eth_address') || ''}),{headers:{'x-dash-pass':pass}, cache:'no-store'});
     if (!response.ok) throw Error();
     const data = await response.json();
-    render(data); $('login').hidden = true; $('password').value = '';
+    render(data);
     $('status').textContent = '表示中は60秒ごとに更新';
   } catch { $('status').textContent = '通信できません。表示中の金額は前回取得時の値です。'; }
-  finally { busy = false; $('refresh').disabled = false; }
+  finally { $('wallet').querySelector('button').disabled = false; busy = false; $('refresh').disabled = false; }
 }
-$('login').onsubmit = e => { e.preventDefault(); pass = $('password').value; refresh(); };
+$('wallet').onsubmit = e => {
+  e.preventDefault();
+  if (busy) return;
+  localStorage.setItem('rb_eth_address', $('address').value.trim());
+  delete cache.eth;
+  main.hidden = true;
+  refresh();
+};
 $('refresh').onclick = refresh;
 setInterval(()=>{ if (!document.hidden) refresh(); },60000);
 refresh();
