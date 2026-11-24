@@ -1,0 +1,29 @@
+name: 作戦の強化案の検証
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: [".github/research3-request"]
+
+permissions:
+  contents: write
+
+jobs:
+  research3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 検証（2021〜今年）
+        run: python -m bot.research3 2021 2026
+      - name: 結果を保存
+        run: |
+          git config user.name "root-bot"
+          git config user.email "root-bot@users.noreply.github.com"
+          git add data/research3.json
+          git diff --cached --quiet || git commit -m "research3 result" -q
+          git pull --rebase -q && git push -q
