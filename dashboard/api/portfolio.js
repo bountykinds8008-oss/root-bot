@@ -22,15 +22,15 @@ async function exchange() {
   return { rows: rows.filter(r => r.qty > 0), time: Date.now() };
 }
 
-async function wallet(address) {
+async function wallet(address, bsc) {
   if (!address) return { state: "未設定" };
   if (!/^0x[0-9a-f]{40}$/i.test(address)) return { state: "アドレス設定エラー" };
-  const rpc = await json("https://ethereum-rpc.publicnode.com", {
+  const rpc = await json(bsc ? "https://bsc-rpc.publicnode.com" : "https://ethereum-rpc.publicnode.com", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBalance", params: [address, "latest"] })
   });
   if (!/^0x[0-9a-f]+$/i.test(rpc.result)) throw Error();
-  return { rows: [{ symbol: "ETH", qty: Number(BigInt(rpc.result)) / 1e18 }], time: Date.now() };
+  return { rows: [{ symbol: bsc ? "BNB" : "ETH", qty: Number(BigInt(rpc.result)) / 1e18 }], time: Date.now() };
 }
 
 async function prices() {
@@ -44,8 +44,19 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");
   const owner = Boolean(process.env.DASH_PASSWORD && req.headers["x-dash-pass"] === process.env.DASH_PASSWORD);
   if (req.method !== "GET") return res.status(405).end();
-  const [bank, eth, quotes] = await Promise.all([owner ? exchange : async () => ({state: "未接続"}),
-    () => wallet(req.query.address || (owner && process.env.PORTFOLIO_ETH_ADDRESS)), prices].map(fn =>
+  const bsc = req.query.chain === "bsc";
+  const [bank, eth, quotes, bnbPrice] = await Promise.all([owner ? exchange : async () => ({state: "未接続"}),
+    () => wallet(req.query.address || (owner && process.env.PORTFOLIO_ETH_ADDRESS), bsc), prices,
+    async () => {
+      if (!bsc) return null;
+      const result = await json("https://api.coingecko.com/api/v3/simple/price?ids=binancecoin&vs_currencies=jpy");
+      return Number(result.binancecoin?.jpy);
+    }].map(fn =>
     fn().catch(() => ({ state: "取得失敗" }))));
+  if (Number.isFinite(bnbPrice) && bnbPrice > 0) {
+    quotes.rates ||= {};
+    quotes.time ||= Date.now();
+    quotes.rates.BNB = bnbPrice;
+  }
   return res.status(200).json({ bank, eth, quotes });
 }
