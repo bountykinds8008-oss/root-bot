@@ -25,10 +25,11 @@ Y2024 = (int(datetime(2024, 1, 1, tzinfo=JST).timestamp() * 1000), SPLIT)
 TAKER = {"btc_jpy": 0.0010}
 MAKER = {"btc_jpy": 0.0}
 SLIP = 0.0005
+ONLY = {"今の作戦（成行）", "A 指値で手数料を減らす"} if "--quick" in sys.argv else None
 BPD = {"4hour": 6, "1day": 1}
 
 
-def sim(bars, pair, tf, din, dout, k, vt, maker):
+def sim(bars, pair, tf, din, dout, k, vt, maker, maker_exit=True):
     """long専用。判断は足の確定、実行は次の足。maker=True なら指値（厳しめの約定判定）。"""
     tk, mk = TAKER.get(pair, 0.0012), MAKER.get(pair, -0.0002)
     o = [b[0] for b in bars]; h = [b[1] for b in bars]; l = [b[2] for b in bars]; c = [b[3] for b in bars]
@@ -40,7 +41,7 @@ def sim(bars, pair, tf, din, dout, k, vt, maker):
         if pend:
             side, lim, age = pend
             px = fee = None
-            if not maker:
+            if not maker or (side == "sell" and not maker_exit):
                 px, fee = o[i] * (1 + SLIP if side == "buy" else 1 - SLIP), tk
             elif side == "buy" and l[i] < lim:
                 px, fee = min(lim, o[i]), mk            # 窓を開けて下げたら始値で約定
@@ -80,13 +81,13 @@ def sim(bars, pair, tf, din, dout, k, vt, maker):
     return curve, trades
 
 
-def evaluate(data, pairs, sleeves, maker):
+def evaluate(data, pairs, sleeves, maker, maker_exit=True):
     curves, tr = {}, []
     for tf, din, dout, k, vt in sleeves:
         for p in pairs:
             if p not in data[tf] or len(data[tf][p]) < din + 40:
                 continue
-            cv, t = sim(data[tf][p], p, tf, din, dout, k, vt, maker)
+            cv, t = sim(data[tf][p], p, tf, din, dout, k, vt, maker, maker_exit)
             curves[f"{tf}:{p}"] = cv; tr += t
     ins, oos = stats(curves, None, SPLIT), stats(curves, SPLIT, None)
     slim = lambda s: {kk: s[kk] for kk in ("total", "cagr", "mdd", "calmar", "hit5", "months", "neg", "avg_m", "worst_m")}
@@ -96,9 +97,13 @@ def evaluate(data, pairs, sleeves, maker):
 
 def main():
     y0 = int(sys.argv[1]) if len(sys.argv) > 1 else 2021
-    y1 = int(sys.argv[2]) if len(sys.argv) > 2 else date.today().year
+    y1 = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else date.today().year
     # 候補の銘柄：bitbankの円建てすべて → 2021年から4時間足があり、2024年の売買代金が多い順
-    allp = [t["pair"] for t in bitbank._http(bitbank.urllib.request.Request(f"{bitbank.PUBLIC}/tickers_jpy"))]
+    if ONLY:   # 3銘柄だけで速く回す
+        allp = list(C.PAIRS)
+    else:
+        allp = None
+    allp = allp or [t["pair"] for t in bitbank._http(bitbank.urllib.request.Request(f"{bitbank.PUBLIC}/tickers_jpy"))]
     data = {"4hour": {}, "1day": {}}
     liq = {}
     for p in allp:
@@ -109,7 +114,7 @@ def main():
         liq[p] = sum(b[3] * b[4] for b in b4 if Y2024[0] <= b[5] < Y2024[1])
     ranked = sorted(liq, key=liq.get, reverse=True)
     extra = [p for p in ranked if p not in C.PAIRS]
-    for p in set(C.PAIRS) | set(extra[:5]):
+    for p in (set(C.PAIRS) | set(extra[:5])) if not ONLY else C.PAIRS:
         data["1day"][p] = fetch(p, "1day", y0, y1)
     print("liquidity 2024 top:", ranked[:10], file=sys.stderr)
 
@@ -125,8 +130,10 @@ def main():
         "A+B 指値＋日足まぜ": (C.PAIRS, [base4, day], True),
     }
     res = {}
+    variants = {k: v for k, v in variants.items() if not ONLY or k in ONLY}
+    variants["A2 買いだけ指値"] = (C.PAIRS, [base4], "entry")
     for name, (pairs, sl, mk) in variants.items():
-        r = evaluate(data, pairs, sl, mk)
+        r = evaluate(data, pairs, sl, bool(mk), mk != "entry")
         r["pairs"] = pairs
         res[name] = r
         print(name, {kk: round(r["in"][kk], 3) for kk in ("total", "mdd", "calmar")},
@@ -140,7 +147,7 @@ def main():
     out = {"generated": datetime.now(JST).isoformat(), "years": [y0, y1], "split": "2025-01-01",
            "extra_ranked": extra[:5], "liquidity_2024": {p: round(liq[p]) for p in ranked[:10]}, "variants": res}
     (ROOT / "data").mkdir(exist_ok=True)
-    (ROOT / "data" / "research3.json").write_text(json.dumps(out, ensure_ascii=False))
+    (ROOT / "data" / ("research3_quick.json" if ONLY else "research3.json")).write_text(json.dumps(out, ensure_ascii=False))
 
 
 if __name__ == "__main__":
