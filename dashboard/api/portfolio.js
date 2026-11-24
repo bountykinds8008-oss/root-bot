@@ -114,8 +114,28 @@ async function chainBalances(address, key) {
   return rows;
 }
 
+// ---------------- ウォレット（Solana：Phantomなど） ----------------
+const SOL_RPC = "https://solana-rpc.publicnode.com";
+const SPL = { EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: "USDC", Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: "USDT" };
+async function solWallet(address) {
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) throw new Error("Solanaのアドレスの形が正しくありません（32〜44文字の英数字）");
+  const [bal, toks] = await rpc(SOL_RPC, [
+    { method: "getBalance", params: [address] },
+    { method: "getTokenAccountsByOwner", params: [address, { programId: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" }, { encoding: "jsonParsed" }] },
+  ]);
+  if (typeof bal?.value !== "number") throw new Error("Solanaの残高を読めません");
+  const rows = [{ symbol: "SOL", qty: bal.value / 1e9, where: "Solana" }];
+  for (const a of toks?.value || []) {
+    const info = a.account?.data?.parsed?.info, sym = SPL[info?.mint];
+    const q = Number(info?.tokenAmount?.uiAmountString ?? info?.tokenAmount?.uiAmount);
+    if (sym && q > 0) rows.push({ symbol: sym, qty: q, where: "Solana" });
+  }
+  return { rows: rows.filter(r => r.qty > 0) };
+}
+
 async function wallet(conn) {
   const address = String(conn.address || "").trim();
+  if (conn.net === "sol") return solWallet(address);
   if (!/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Error("アドレスの形が正しくありません（0xから始まる42文字）");
   const keys = (conn.chains || []).filter(k => CHAINS[k]);
   if (!keys.length) throw new Error("ネットワークを1つ以上選んでください");

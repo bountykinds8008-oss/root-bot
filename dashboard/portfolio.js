@@ -19,6 +19,8 @@ const WALLETS = {
   trust: { name: "Trust Wallet", color: "#3375bb", ab: "TW" },
   okx: { name: "OKX Wallet", color: "#d9d9d9", ab: "OK" },
   binance: { name: "Binance Web3", color: "#f0b90b", ab: "BW" },
+  phantom: { name: "Phantom", color: "#ab9ff2", ab: "Ph", sol: true },
+  solflare: { name: "Solflare", color: "#fc7227", ab: "Sf", sol: true },
   other: { name: "その他", color: "#8b5cff", ab: "0x" },
 };
 const EXS = {
@@ -102,7 +104,7 @@ function render() {
     total += sum; missing ||= miss;
     const chip = res.state && res.rows ? `<span class="chip ng">前回値</span>` : res.state ? `<span class="chip ng">エラー</span>`
       : res.rows ? `<span class="chip ok">✓</span>` : `<span class="chip wait">取得中</span>`;
-    const detail = c.kind === "wallet" ? `${shortAddr(c.address)}・${c.chains.map(k => NETS[k]).join("/")}`
+    const detail = c.kind === "wallet" ? `${shortAddr(c.address)}・${c.net === "sol" ? "Solana" : c.chains.map(k => NETS[k]).join("/")}`
       : c.server ? "サーバー保存の鍵" : "APIキー（参照のみ）";
     const el = document.createElement("div");
     el.className = "acc" + (openId === c.id ? " open" : "");
@@ -318,33 +320,47 @@ function drawForm() {
 
 function walletForm(f) {
   const nets = new Set(Object.keys(NETS));
-  const eth = window.ethereum;
+  let sol = !!WALLETS[sel].sol;
+  const eth = sol ? window.solana : window.ethereum;
   f.innerHTML = `
     <div class="help"><b>アドレスのコピー方法</b><br>${esc(WALLETS[sel].name)}のアプリを開く → いちばん上のアカウント名（または「受け取る」）をタップ → アドレスをコピー。<br>
       <span style="color:var(--gold)">秘密鍵・12個の英単語（復元フレーズ）は絶対に入れないでください。</span></div>
+    ${sel === "other" ? `<div class="fld"><label>チェーン</label><div class="nets" id="wKind"><button type="button" data-k="evm" class="on">EVM（0x…）</button><button type="button" data-k="sol">Solana</button></div></div>` : ""}
     ${eth ? `<button class="alt" id="wRead">このブラウザのウォレットからアドレスを読み込む</button>` : ""}
-    <div class="fld"><label>公開アドレス（0xから始まる42文字）</label>
+    <div class="fld"><label id="wLab">公開アドレス</label>
       <div style="display:flex;gap:6px"><input id="wAddr" placeholder="0x…" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text">
       <button class="tb" id="wPaste" type="button">貼り付け</button></div></div>
-    <div class="fld"><label>見るネットワーク（あとで外すこともできます）</label><div class="nets" id="wNets">
+    <div class="fld" id="wNetBox"><label>見るネットワーク（あとで外すこともできます）</label><div class="nets" id="wNets">
       ${Object.entries(NETS).map(([k, n]) => `<button type="button" data-k="${k}" class="on">${n}</button>`).join("")}</div></div>
     <div class="fld"><label>表示名（なくてもOK）</label><input id="wName" placeholder="${esc(WALLETS[sel].name)}" maxlength="20"></div>
     <p class="msg" id="wMsg"></p>
     <button class="go" id="wGo">つなぐ</button>`;
+  const syncKind = () => {
+    $("wNetBox").hidden = sol;
+    $("wLab").textContent = sol ? "公開アドレス（Solana：32〜44文字の英数字）" : "公開アドレス（0xから始まる42文字）";
+    $("wAddr").placeholder = sol ? "例：7xKX…" : "0x…";
+  };
+  if ($("wKind")) $("wKind").querySelectorAll("button").forEach(b => b.onclick = () => {
+    sol = b.dataset.k === "sol"; $("wKind").querySelectorAll("button").forEach(z => z.classList.toggle("on", z === b)); syncKind(); });
+  syncKind();
   $("wNets").querySelectorAll("button").forEach(b => b.onclick = () => {
     nets.has(b.dataset.k) ? nets.delete(b.dataset.k) : nets.add(b.dataset.k); b.classList.toggle("on", nets.has(b.dataset.k)); });
   $("wPaste").onclick = async () => { try { $("wAddr").value = (await navigator.clipboard.readText()).trim(); } catch { $("wMsg").textContent = "貼り付けできませんでした。入力欄を長押しして「ペースト」を選んでください。"; } };
   if (eth) $("wRead").onclick = async () => {
-    try { const [a] = await eth.request({ method: "eth_requestAccounts" }); if (a) $("wAddr").value = a; }
+    try {
+      if (sol) { const r = await eth.connect({ onlyIfTrusted: false }); $("wAddr").value = String(r.publicKey); return; }
+      const [a] = await eth.request({ method: "eth_requestAccounts" }); if (a) $("wAddr").value = a; }
     catch { $("wMsg").textContent = "読み込みがキャンセルされました。"; }
   };
   $("wGo").onclick = () => {
     const a = $("wAddr").value.trim();
-    if (!/^0x[0-9a-fA-F]{40}$/.test(a)) return $("wMsg").textContent = "アドレスの形が違います（0x＋40文字の英数字）。";
-    if (!nets.size) return $("wMsg").textContent = "ネットワークを1つ以上選んでください。";
+    if (sol && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a)) return $("wMsg").textContent = "Solanaのアドレスの形が違います（32〜44文字の英数字）。";
+    if (!sol && !/^0x[0-9a-fA-F]{40}$/.test(a)) return $("wMsg").textContent = "アドレスの形が違います（0x＋40文字の英数字）。";
+    if (!sol && !nets.size) return $("wMsg").textContent = "ネットワークを1つ以上選んでください。";
     if (conns.some(c => c.kind === "wallet" && c.address.toLowerCase() === a.toLowerCase()))
       return $("wMsg").textContent = "このアドレスは、もうつないであります。";
-    const c = { id: "w" + Date.now(), kind: "wallet", brand: sel, address: a, chains: [...nets] };
+    const c = sol ? { id: "w" + Date.now(), kind: "wallet", brand: sel, net: "sol", address: a, chains: [] }
+      : { id: "w" + Date.now(), kind: "wallet", brand: sel, address: a, chains: [...nets] };
     if ($("wName").value.trim()) c.label = $("wName").value.trim();
     added(c);
   };
@@ -384,7 +400,48 @@ function added(c) {
   conns.push(c); save(); closeSheet(); openId = c.id; render(); refresh();
 }
 
-$("refresh").onclick = () => refresh();
+// ---------------- 5大コイン（bitbankの価格・7日の動き） ----------------
+const TOP5 = [["btc_jpy", "BTC", "ビットコイン"], ["xrp_jpy", "XRP", "リップル"], ["sol_jpy", "SOL", "ソラナ"],
+  ["eth_jpy", "ETH", "イーサリアム"], ["bnb_jpy", "BNB", "BNB"]];
+const spark = {};
+const pxFmt = (p, v) => "¥" + (p === "xrp_jpy" ? v.toFixed(3) : p === "sol_jpy" ? v.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : Math.round(v).toLocaleString("ja-JP"));
+async function loadTop5(withSpark) {
+  try {
+    const d = await (await fetch("/api/market", { cache: "no-store" })).json();
+    if (withSpark) await Promise.all(TOP5.map(async ([p]) => {
+      try { const r = await (await fetch(`/api/market?pair=${p}&tf=1hour`)).json(); if (r.ohlc) spark[p] = r.ohlc.slice(-168).map(o => o[4]); } catch {}
+    }));
+    renderTop5(d.tickers || {});
+  } catch { $("t5t").textContent = "価格を取得できませんでした"; }
+}
+function renderTop5(t) {
+  const hold = new Map();
+  for (const c of conns) for (const r of last.results[c.id]?.rows || []) hold.set(r.symbol, (hold.get(r.symbol) || 0) + r.qty);
+  $("t5").innerHTML = TOP5.map(([p, s, n]) => {
+    const k = t[p]; if (!k) return "";
+    const ch = k.last / k.open - 1, mine = hold.get(s);
+    return `<div class="c5"><div class="ic" style="background:${colorOf(s)}">${s}</div>
+      <div class="nm">${n}<small>${s}/JPY${mine ? `<span class="own">・保有 ${qtyFmt(mine)}</span>` : ""}</small></div>
+      <canvas data-p="${p}"></canvas>
+      <div class="px num">${pxFmt(p, k.last)}<small class="${ch > 0 ? "up" : ch < 0 ? "down" : ""}">24h ${(ch >= 0 ? "+" : "") + (ch * 100).toFixed(2)}%</small></div></div>`;
+  }).join("");
+  $("t5").querySelectorAll("canvas").forEach(cv => {
+    const v = spark[cv.dataset.p]; if (!v || v.length < 2) return;
+    const d = Math.min(4, devicePixelRatio || 1), W = 72, H = 32, x = cv.getContext("2d");
+    cv.width = W * d; cv.height = H * d; x.setTransform(d, 0, 0, d, 0, 0); x.lineJoin = x.lineCap = "round";
+    const lo = Math.min(...v), hi = Math.max(...v), X = i => 1 + i / (v.length - 1) * (W - 2), Y = q => 2 + (1 - (q - lo) / (hi - lo || 1)) * (H - 4);
+    const up = v[v.length - 1] >= v[0], col = up ? "#3ff2b5" : "#ff5577";
+    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, up ? "rgba(63,242,181,.25)" : "rgba(255,85,119,.25)"); g.addColorStop(1, "rgba(0,0,0,0)");
+    x.beginPath(); v.forEach((q, i) => i ? x.lineTo(X(i), Y(q)) : x.moveTo(X(i), Y(q))); x.lineTo(W, H); x.lineTo(0, H); x.fillStyle = g; x.fill();
+    x.beginPath(); v.forEach((q, i) => i ? x.lineTo(X(i), Y(q)) : x.moveTo(X(i), Y(q))); x.strokeStyle = col; x.lineWidth = 1.4; x.stroke();
+  });
+  $("t5t").textContent = "bitbankの価格・7日の動き";
+}
+loadTop5(true);
+setInterval(() => { if (!document.hidden) loadTop5(false); }, 15000);
+setInterval(() => { if (!document.hidden) loadTop5(true); }, 10 * 60000);
+
+$("refresh").onclick = () => { refresh(); loadTop5(true); };
 setInterval(() => { if (!document.hidden) refresh(); }, 60000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - last.at > 30000) refresh(); });
 render();

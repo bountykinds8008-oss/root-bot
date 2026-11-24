@@ -1,5 +1,5 @@
 // オフラインでも画面の枠は開けるようにする。価格・成績（/api）は常に最新を取りに行く。
-const CACHE = "rootbot-v8";
+const CACHE = "rootbot-v9";
 const SHELL = ["/desk", "/live", "/", "/manifest.webmanifest",
   "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png"];
 
