@@ -22,7 +22,8 @@ def series(fn, n, base, seed=1):
 
 
 def data_from(fn, n=24 * 60, seeds=(1, 2, 3)):
-    bases = {"btc_jpy": 15_000_000, "eth_jpy": 500_000, "xrp_jpy": 300}
+    bases = {"btc_jpy": 15_000_000, "eth_jpy": 500_000, "xrp_jpy": 300, "sol_jpy": 25_000, "bnb_jpy": 130_000}
+    seeds = list(seeds) + [seeds[-1] + k for k in range(1, len(C.PAIRS) - len(seeds) + 1)]   # 5銘柄ぶん
     return {p: series(fn, n, bases[p], s) for p, s in zip(C.PAIRS, seeds)}
 
 

@@ -1,7 +1,7 @@
 // Vercel サーバーレス関数：bitbankの公開価格（誰でも見られるデータ）を中継する。
 // ?pair=btc_jpy で、そのペアの1分足（直近）も返す。
 // ?pair=btc_jpy&tf=4hour で、ボットが判断に使う4時間足（直近200本）を返す。
-const PAIRS = ["btc_jpy", "eth_jpy", "xrp_jpy"];
+const PAIRS = ["btc_jpy", "xrp_jpy", "sol_jpy", "eth_jpy", "bnb_jpy"];   // 5大コイン
 const PUB = "https://public.bitbank.cc";
 
 const ymd = d => d.toISOString().slice(0, 10).replace(/-/g, "");

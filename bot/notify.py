@@ -8,7 +8,7 @@ import urllib.request
 
 from . import config as C
 
-NAMES = {"btc_jpy": "BTC", "eth_jpy": "ETH", "xrp_jpy": "XRP"}
+NAMES = {"btc_jpy": "BTC", "xrp_jpy": "XRP", "sol_jpy": "SOL", "eth_jpy": "ETH", "bnb_jpy": "BNB"}
 
 
 def send(title, message, tags=(), priority=3):
@@ -29,7 +29,9 @@ def yen(v):
 
 
 def price(pair, px):
-    return f"¥{px:,.3f}" if pair == "xrp_jpy" else f"¥{round(px):,}"
+    if pair == "xrp_jpy":
+        return f"¥{px:,.3f}"
+    return f"¥{px:,.1f}" if pair == "sol_jpy" else f"¥{round(px):,}"
 
 
 def trades(new, mode, equity):
