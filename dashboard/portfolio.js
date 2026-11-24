@@ -1,87 +1,304 @@
+// 資産一覧：つなぐ先（ウォレット・取引所）を選んで追加し、まとめて円換算で表示する。
+// つなぐ先の設定はこの端末の localStorage（rb_conns）だけに保存する。
 const $ = id => document.getElementById(id);
-const main = document.querySelector('main');
-const yen = n => Math.round(n).toLocaleString('ja-JP') + ' 円';
-const stamp = t => new Date(t).toLocaleString('ja-JP');
-$('address').value = localStorage.getItem('rb_eth_address') || '';
-let chain = localStorage.getItem('rb_chain') === 'eth' ? 'eth' : 'bsc';
-$('chain').value = chain;
-const pass = localStorage.getItem('rb_pass') || '';
-let cache = {}, busy = false;
-function line(parent, title, detail) {
-  const row = document.createElement('div');
-  row.className = 'row';
-  for (const value of [title, detail]) {
-    const span = document.createElement('span');
-    span.textContent = value;
-    row.append(span);
-  }
-  parent.append(row);
+const store = {
+  get(k, d = null) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  json(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+};
+const yen = n => (n < 0 ? "−¥" : "¥") + Math.abs(Math.round(n)).toLocaleString("ja-JP");
+const hm = t => new Date(t).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" });
+const qtyFmt = q => q.toLocaleString("ja-JP", { maximumSignificantDigits: 8 });
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const shortAddr = a => a.slice(0, 6) + "…" + a.slice(-4);
+
+// ---- つなぐ先の種類（アイコンは文字バッジ。各社のロゴは使わない） ----
+const WALLETS = {
+  metamask: { name: "MetaMask", color: "#f6851b", ab: "MM" },
+  rabby: { name: "Rabby", color: "#7084ff", ab: "Ra" },
+  trust: { name: "Trust Wallet", color: "#3375bb", ab: "TW" },
+  okx: { name: "OKX Wallet", color: "#d9d9d9", ab: "OK" },
+  binance: { name: "Binance Web3", color: "#f0b90b", ab: "BW" },
+  other: { name: "その他", color: "#8b5cff", ab: "0x" },
+};
+const EXS = {
+  bitbank: { name: "bitbank", color: "#2fa6e8", ab: "bb" },
+  bitflyer: { name: "bitFlyer", color: "#5ec6f2", ab: "bF" },
+  coincheck: { name: "Coincheck", color: "#18b7a4", ab: "cc" },
+  gmo: { name: "GMOコイン", color: "#ff8a3d", ab: "GM" },
+};
+const NETS = { eth: "Ethereum", bsc: "BNB Chain", polygon: "Polygon", arbitrum: "Arbitrum", base: "Base" };
+const SYMCOL = { JPY: "#c9c2d6", BTC: "#ff9f2e", ETH: "#8b9cff", XRP: "#55d6ff", BNB: "#f0b90b", USDT: "#26a17b",
+  USDC: "#2775ca", POL: "#8247e5", SOL: "#14f195", DOGE: "#c2a633", ADA: "#3468d1", DOT: "#e6007a", LTC: "#a6a9aa" };
+const PALETTE = ["#ff5fc7", "#3ff2b5", "#ffc65c", "#55d6ff", "#8b5cff", "#ff8a5c", "#b8f25c"];
+const colorOf = s => SYMCOL[s] || PALETTE[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTE.length];
+const brandOf = c => c.kind === "wallet" ? WALLETS[c.brand] || WALLETS.other : EXS[c.ex];
+
+// ---- 保存データ（以前の設定からの引っ越しも） ----
+let conns = store.json("rb_conns", null);
+if (!Array.isArray(conns)) {
+  conns = [];
+  const addr = store.get("rb_eth_address");
+  if (addr) conns.push({ id: "w" + Date.now(), kind: "wallet", brand: "metamask", address: addr,
+    chains: [store.get("rb_chain") === "eth" ? "eth" : "bsc"] });
+  if (store.get("rb_pass")) conns.push({ id: "x" + Date.now(), kind: "exchange", ex: "bitbank", server: true });
+  save();
 }
-function render(data) {
-  let total = 0, partial = false, valued = false;
-  const holdings = new Map();
-  for (const [key, snapshot] of Object.entries(data)) {
-    if (snapshot.time) cache[key] = snapshot;
-    else if (snapshot.state !== '取得失敗') delete cache[key];
-  }
-  const price = symbol => symbol === 'JPY' ? 1 : cache.quotes?.rates[symbol];
-  $('accounts').replaceChildren();
-  for (const [key, name] of [['bank','bitbank'],['eth',chain === 'bsc' ? 'MetaMask · BNB' : 'MetaMask · ETH']]) {
-    const snapshot = cache[key];
-    if (!snapshot) { partial = true; line($('accounts'), name, data[key].state); continue; }
-    let sum = 0, missing = false, hasValue = snapshot.rows.length === 0;
-    for (const {symbol, qty} of snapshot.rows) {
-      if (!qty) continue;
-      holdings.set(symbol, (holdings.get(symbol) || 0) + qty);
-      if (price(symbol)) { sum += qty * price(symbol); hasValue = true; }
-      else missing = true;
-    }
-    if (!missing) hasValue = true;
-    valued ||= hasValue;
-    partial ||= missing;
-    total += sum;
-    line($('accounts'), name, (hasValue ? yen(sum) : '—') + (missing ? '（未評価あり）' : '') + ' · ' +
-      (data[key].state ? '前回値 ' : '') + stamp(snapshot.time));
-  }
-  $('assets').replaceChildren();
-  for (const [symbol,qty] of [...holdings].sort((a,b)=>b[1]*(price(b[0])||0)-a[1]*(price(a[0])||0))) {
-    const amount = qty * price(symbol);
-    line($('assets'), symbol + ' ' + qty.toLocaleString('ja-JP',{maximumSignificantDigits:9}),
-      Number.isFinite(amount) ? yen(amount) + (total ? ' · '+(amount/total*100).toFixed(1)+'%' : '') : '価格未取得');
-  }
-  $('label').textContent = partial ? '取得できた資産の小計' : '実資産合計';
-  $('total').textContent = valued ? yen(total) : '—';
-  $('quote').textContent = cache.quotes ? (data.quotes.state ? '前回の価格 ' : '価格取得 ') + stamp(cache.quotes.time) : '価格未取得';
-  main.hidden = false;
-}
+function save() { store.set("rb_conns", JSON.stringify(conns)); }
+let last = store.json("rb_pf_last", { results: {}, quotes: null, at: 0 });   // 前回の結果（鍵は含まない）
+let busy = false, shown = 0, openId = null;
+
+// ---------------- 取得 ----------------
 async function refresh() {
   if (busy) return;
-  $('chain').disabled = true; $('status').textContent = '残高と価格を更新中…';
-  busy = true; $('wallet').querySelector('button').disabled = true; $('refresh').disabled = true;
+  if (!conns.length) { render(); $("status").textContent = ""; return; }
+  busy = true; document.body.classList.add("busy"); $("refresh").disabled = true;
+  $("status").textContent = "残高と価格を取りに行っています…";
   try {
-    const response = await fetch('/api/portfolio?'+new URLSearchParams({chain,address:localStorage.getItem('rb_eth_address') || ''}),{headers:{'x-dash-pass':pass}, cache:'no-store'});
-    if (!response.ok) throw Error();
-    const data = await response.json();
-    render(data);
-    const outcome = data.eth.rows ? '残高取得 ' + stamp(data.eth.time) : 'ウォレット：' + data.eth.state;
-    $('status').textContent = outcome + '（60秒ごとに更新）';
-  } catch { $('status').textContent = '通信できません。表示中の金額は前回取得時の値です。'; }
-  finally { $('chain').disabled = false; $('wallet').querySelector('button').disabled = false; busy = false; $('refresh').disabled = false; }
+    const r = await fetch("/api/portfolio", {
+      method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json", "x-dash-pass": store.get("rb_pass", "") },
+      body: JSON.stringify({ conns }),
+    });
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    for (const [id, v] of Object.entries(d.results || {})) {
+      // 失敗したときは、前回の成功値を残して「前回値」と表示する
+      if (v.rows) last.results[id] = v;
+      else last.results[id] = { ...(last.results[id]?.rows ? last.results[id] : {}), state: v.state };
+    }
+    if (d.quotes && Object.keys(d.quotes.rates || {}).length) last.quotes = d.quotes;
+    last.at = Date.now();
+    store.set("rb_pf_last", JSON.stringify(last));
+    const ng = conns.filter(c => last.results[c.id]?.state).length;
+    $("status").textContent = `更新 ${hm(last.at)}・60秒ごとに自動更新` + (ng ? `・${ng}件うまく取れませんでした` : "");
+  } catch {
+    $("status").textContent = "通信できませんでした。表示は前回の値です。";
+  } finally {
+    busy = false; document.body.classList.remove("busy"); $("refresh").disabled = false;
+    render();
+  }
 }
-$('wallet').onsubmit = e => {
-  e.preventDefault();
-  if (busy) return;
-  const previousAddress = localStorage.getItem('rb_eth_address');
-  localStorage.setItem('rb_eth_address', $('address').value.trim());
-  if ($('address').value.trim() !== previousAddress) delete cache.eth;
-  main.hidden = true;
-  refresh();
-};
-$('chain').onchange = () => {
-  chain = $('chain').value;
-  localStorage.setItem('rb_chain', chain);
-  cache = {}; main.hidden = true; refresh();
-};
-$('refresh').onclick = () => $('wallet').requestSubmit();
-setInterval(()=>{ if (!document.hidden) refresh(); },60000);
+
+// ---------------- 表示 ----------------
+function render() {
+  const rates = last.quotes?.rates || {};
+  const price = s => s === "JPY" ? 1 : rates[s];
+  const hold = new Map(); let total = 0, missing = false;
+  $("accN").textContent = conns.length ? `${conns.length}件` : "";
+  const box = $("accounts"); box.replaceChildren();
+  if (!conns.length) box.innerHTML = `<div class="empty">まだ何もつないでいません。<br>下のボタンから、MetaMaskなどのウォレットや<br>bitbank・bitFlyerなどの取引所を選んでつなげます。</div>`;
+
+  for (const c of conns) {
+    const b = brandOf(c), res = last.results[c.id] || {};
+    let sum = 0, miss = false;
+    for (const r of res.rows || []) {
+      const p = price(r.symbol);
+      if (p) sum += r.qty * p; else miss = true;
+      const h = hold.get(r.symbol) || { qty: 0, where: new Set() };
+      h.qty += r.qty; h.where.add(c.kind === "wallet" ? (c.label || b.name) : b.name); hold.set(r.symbol, h);
+    }
+    total += sum; missing ||= miss;
+    const chip = res.state && res.rows ? `<span class="chip ng">前回値</span>` : res.state ? `<span class="chip ng">エラー</span>`
+      : res.rows ? `<span class="chip ok">✓</span>` : `<span class="chip wait">取得中</span>`;
+    const detail = c.kind === "wallet" ? `${shortAddr(c.address)}・${c.chains.map(k => NETS[k]).join("/")}`
+      : c.server ? "サーバー保存の鍵" : "APIキー（参照のみ）";
+    const el = document.createElement("div");
+    el.className = "acc" + (openId === c.id ? " open" : "");
+    el.innerHTML = `<div class="hd"><div class="ic" style="background:${b.color}">${b.ab}</div>
+      <div style="min-width:0"><div class="nm">${esc(c.label || b.name)}${chip}</div><div class="dt">${esc(detail)}</div></div>
+      <div class="v num">${res.rows ? yen(sum) : "—"}<small class="mute">${res.time ? hm(res.time) : ""}${miss ? "・一部未評価" : ""}</small></div></div>
+      <div class="bd">
+        ${res.state ? `<div class="err">⚠ ${esc(res.state)}</div>` : ""}${res.note ? `<div class="err" style="color:var(--gold)">${esc(res.note)}</div>` : ""}
+        ${(res.rows || []).sort((a, z) => z.qty * (price(z.symbol) || 0) - a.qty * (price(a.symbol) || 0)).map(r => `<div class="r"><span>${esc(r.symbol)} <span class="mute num" style="font-size:12px">${qtyFmt(r.qty)}</span>${r.where ? `<span class="mute" style="font-size:11px">・${esc(r.where)}</span>` : ""}</span><span class="num">${price(r.symbol) ? yen(r.qty * price(r.symbol)) : "価格なし"}</span></div>`).join("") || (res.state ? "" : `<div class="mute" style="padding:6px 0">残高はありません</div>`)}
+        <div class="ops"><button data-act="del">このつなぎ先を外す</button></div></div>`;
+    el.querySelector(".hd").onclick = () => { openId = openId === c.id ? null : c.id; render(); };
+    el.querySelector("[data-act=del]").onclick = e => {
+      e.stopPropagation();
+      if (!confirm(`「${c.label || b.name}」を外しますか？（この端末に保存したキーも消えます）`)) return;
+      conns = conns.filter(x => x !== c); delete last.results[c.id]; save(); store.set("rb_pf_last", JSON.stringify(last)); render();
+    };
+    box.append(el);
+  }
+
+  // 合計
+  const okAny = conns.some(c => last.results[c.id]?.rows);
+  animateTotal(okAny ? total : null);
+  const errs = conns.filter(c => last.results[c.id]?.state).length;
+  $("label").textContent = errs || missing ? "合計（取れた分の小計）" : "合計（円換算）";
+  $("sub").textContent = !conns.length ? "口座をつなぐと合計が出ます" :
+    `${conns.length}件の口座・${hold.size}銘柄` + (last.at ? `・${hm(last.at)} 時点` : "");
+
+  // 銘柄別
+  const list = [...hold].map(([s, h]) => ({ s, ...h, jpy: price(s) ? h.qty * price(s) : null }))
+    .sort((a, z) => (z.jpy ?? -1) - (a.jpy ?? -1));
+  $("assetCard").hidden = !list.length;
+  $("assets").innerHTML = list.map(a => {
+    const pc = a.jpy != null && total > 0 ? a.jpy / total : 0;
+    return `<div class="asset"><div><b>${esc(a.s)}</b> <span class="q num">${qtyFmt(a.qty)}</span><div class="q">${esc([...a.where].join("・"))}</div></div>
+      <div class="num" style="text-align:right">${a.jpy != null ? yen(a.jpy) : "価格なし"}<div class="q">${a.jpy != null ? (pc * 100).toFixed(1) + "%" : ""}</div></div>
+      <div class="bar"><i style="width:${(pc * 100).toFixed(2)}%;background:${colorOf(a.s)}"></i></div></div>`;
+  }).join("");
+
+  // 円グラフ（上位5つ＋その他）
+  const top = list.filter(a => a.jpy > 0).slice(0, 5), rest = list.filter(a => a.jpy > 0).slice(5).reduce((s, a) => s + a.jpy, 0);
+  const parts = top.map(a => ({ s: a.s, v: a.jpy, c: colorOf(a.s) }));
+  if (rest > 0) parts.push({ s: "その他", v: rest, c: "#4a3f66" });
+  donut.to(parts);
+  $("legend").innerHTML = parts.map(p => `<span><i style="background:${p.c}"></i>${esc(p.s)} ${total ? (p.v / total * 100).toFixed(1) : 0}%</span>`).join("");
+}
+
+// 合計の数字はなめらかに数え上げる
+let raf = 0;
+function animateTotal(target) {
+  cancelAnimationFrame(raf);
+  if (target == null) { $("total").textContent = "—"; return; }
+  const from = shown || target * .96, t0 = performance.now(), dur = 700;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    shown = from + (target - from) * e; $("total").textContent = yen(shown);
+    if (k < 1) raf = requestAnimationFrame(step);
+  };
+  raf = requestAnimationFrame(step);
+}
+
+// 円グラフ：端末の実ピクセルで描き、変化はアニメーション
+const donut = (() => {
+  const cv = $("donut"), x = cv.getContext("2d"); let cur = [], tgt = [], t0 = 0;
+  function fit() {
+    const d = Math.min(4, devicePixelRatio || 1), r = cv.getBoundingClientRect();
+    if (cv.width !== Math.round(r.width * d)) { cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); }
+    x.setTransform(d, 0, 0, d, 0, 0); return r.width;
+  }
+  function draw(parts, k) {
+    const W = fit(), c = W / 2, R = W / 2 - 3, sum = parts.reduce((s, p) => s + p.v, 0);
+    x.clearRect(0, 0, W, W);
+    x.lineWidth = 13; x.lineCap = "butt";
+    x.strokeStyle = "#24193a"; x.beginPath(); x.arc(c, c, R - 7, 0, Math.PI * 2); x.stroke();
+    if (!sum) return;
+    let a = -Math.PI / 2; const full = Math.PI * 2 * k;
+    for (const p of parts) {
+      const da = p.v / sum * full; if (da <= 0) continue;
+      x.strokeStyle = p.c; x.shadowColor = p.c; x.shadowBlur = 6;
+      x.beginPath(); x.arc(c, c, R - 7, a + .012, a + da - .012); x.stroke(); a += da;
+    }
+    x.shadowBlur = 0;
+    x.fillStyle = "#f1e9ff"; x.font = "700 13px -apple-system,'Hiragino Sans',sans-serif"; x.textAlign = "center";
+    x.fillText(parts[0] ? parts[0].s : "", c, c + 1);
+    x.fillStyle = "#9a8fb0"; x.font = "11px ui-monospace,monospace";
+    x.fillText(parts[0] ? (parts[0].v / sum * 100).toFixed(0) + "%" : "", c, c + 16);
+  }
+  return {
+    to(parts) {
+      const same = JSON.stringify(parts.map(p => [p.s, Math.round(p.v)])) === JSON.stringify(tgt.map(p => [p.s, Math.round(p.v)]));
+      tgt = parts; if (same && cur.length) return draw(tgt, 1);
+      t0 = performance.now(); cur = parts;
+      const step = now => { const k = Math.min(1, (now - t0) / 800); draw(tgt, 1 - Math.pow(1 - k, 3)); if (k < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    },
+    redraw() { draw(tgt, 1); },
+  };
+})();
+addEventListener("resize", () => donut.redraw());
+
+// ---------------- つなぐシート ----------------
+let tab = "wallet", sel = null;
+function openSheet() { $("sheet").classList.add("show"); sel = null; drawPick(); drawForm(); }
+function closeSheet() { $("sheet").classList.remove("show"); }
+$("addBtn").onclick = openSheet;
+$("shX").onclick = closeSheet;
+$("sheet").onclick = e => { if (e.target === $("sheet")) closeSheet(); };
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  tab = b.dataset.tab; sel = null;
+  document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+  drawPick(); drawForm();
+});
+function drawPick() {
+  const src = tab === "wallet" ? WALLETS : EXS;
+  $("pick").innerHTML = Object.entries(src).map(([k, b]) =>
+    `<button data-k="${k}" class="${sel === k ? "on" : ""}"><span class="ic" style="background:${b.color}">${b.ab}</span>${esc(b.name)}</button>`).join("");
+  $("pick").querySelectorAll("button").forEach(b => b.onclick = () => { sel = b.dataset.k; drawPick(); drawForm(); });
+  $("shT").textContent = sel ? `${src[sel].name} をつなぐ` : "つなぐ先を選ぶ";
+}
+function drawForm() {
+  const f = $("form");
+  if (!sel) { f.innerHTML = `<div class="help">${tab === "wallet"
+    ? "使っているウォレットを選んでください。<b>公開アドレス（0x…）だけ</b>で残高を読みます。秘密鍵や復元フレーズは<b>絶対に入力しません</b>。"
+    : "使っている取引所を選んでください。取引所で作った<b>「残高を見るだけ」のAPIキー</b>でつなぎます。"}</div>`; return; }
+  if (tab === "wallet") return walletForm(f);
+  return exchangeForm(f);
+}
+
+function walletForm(f) {
+  const nets = new Set(Object.keys(NETS));
+  const eth = window.ethereum;
+  f.innerHTML = `
+    <div class="help"><b>アドレスのコピー方法</b><br>${esc(WALLETS[sel].name)}のアプリを開く → いちばん上のアカウント名（または「受け取る」）をタップ → アドレスをコピー。<br>
+      <span style="color:var(--gold)">秘密鍵・12個の英単語（復元フレーズ）は絶対に入れないでください。</span></div>
+    ${eth ? `<button class="alt" id="wRead">このブラウザのウォレットからアドレスを読み込む</button>` : ""}
+    <div class="fld"><label>公開アドレス（0xから始まる42文字）</label>
+      <div style="display:flex;gap:6px"><input id="wAddr" placeholder="0x…" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text">
+      <button class="tb" id="wPaste" type="button">貼り付け</button></div></div>
+    <div class="fld"><label>見るネットワーク（あとで外すこともできます）</label><div class="nets" id="wNets">
+      ${Object.entries(NETS).map(([k, n]) => `<button type="button" data-k="${k}" class="on">${n}</button>`).join("")}</div></div>
+    <div class="fld"><label>表示名（なくてもOK）</label><input id="wName" placeholder="${esc(WALLETS[sel].name)}" maxlength="20"></div>
+    <p class="msg" id="wMsg"></p>
+    <button class="go" id="wGo">つなぐ</button>`;
+  $("wNets").querySelectorAll("button").forEach(b => b.onclick = () => {
+    nets.has(b.dataset.k) ? nets.delete(b.dataset.k) : nets.add(b.dataset.k); b.classList.toggle("on", nets.has(b.dataset.k)); });
+  $("wPaste").onclick = async () => { try { $("wAddr").value = (await navigator.clipboard.readText()).trim(); } catch { $("wMsg").textContent = "貼り付けできませんでした。入力欄を長押しして「ペースト」を選んでください。"; } };
+  if (eth) $("wRead").onclick = async () => {
+    try { const [a] = await eth.request({ method: "eth_requestAccounts" }); if (a) $("wAddr").value = a; }
+    catch { $("wMsg").textContent = "読み込みがキャンセルされました。"; }
+  };
+  $("wGo").onclick = () => {
+    const a = $("wAddr").value.trim();
+    if (!/^0x[0-9a-fA-F]{40}$/.test(a)) return $("wMsg").textContent = "アドレスの形が違います（0x＋40文字の英数字）。";
+    if (!nets.size) return $("wMsg").textContent = "ネットワークを1つ以上選んでください。";
+    if (conns.some(c => c.kind === "wallet" && c.address.toLowerCase() === a.toLowerCase()))
+      return $("wMsg").textContent = "このアドレスは、もうつないであります。";
+    const c = { id: "w" + Date.now(), kind: "wallet", brand: sel, address: a, chains: [...nets] };
+    if ($("wName").value.trim()) c.label = $("wName").value.trim();
+    added(c);
+  };
+}
+
+function exchangeForm(f) {
+  const isBB = sel === "bitbank", hasPass = !!store.get("rb_pass");
+  f.innerHTML = `
+    <div class="help warn"><b>APIキーは「残高を見る」だけの権限で作ってください</b><br>
+      ${esc(EXS[sel].name)}のサイト（パソコンが楽です）にログイン → 「API」の設定画面で新しいキーを作成 → 権限は<b>参照・残高照会だけ</b>にチェック。<b>取引・出金・送金には絶対にチェックしない</b>でください。</div>
+    ${isBB ? `<label class="toggle"><input type="checkbox" id="xSrv" ${hasPass ? "checked" : ""}>サーバーに保存してあるbitbankの鍵を使う（合言葉）</label>` : ""}
+    <div id="xKeys">
+      <div class="fld"><label>APIキー</label><input id="xKey" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="fld"><label>シークレット（秘密のほう）</label><input id="xSec" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="help">キーはこの端末の中だけに保存し、残高を取りに行くときだけ使います（サーバーには保存しません）。</div>
+    </div>
+    <div id="xPassBox" hidden><div class="fld"><label>合言葉</label><input id="xPass" type="password" value="${esc(store.get("rb_pass", ""))}"></div></div>
+    <p class="msg" id="xMsg"></p>
+    <button class="go" id="xGo">つなぐ</button>`;
+  const sync = () => { const srv = isBB && $("xSrv").checked; $("xKeys").hidden = srv; $("xPassBox").hidden = !srv; };
+  if (isBB) { $("xSrv").onchange = sync; sync(); }
+  $("xGo").onclick = () => {
+    const srv = isBB && $("xSrv").checked;
+    if (conns.some(c => c.kind === "exchange" && c.ex === sel)) return $("xMsg").textContent = "この取引所は、もうつないであります。";
+    if (srv) {
+      if (!$("xPass").value) return $("xMsg").textContent = "合言葉を入れてください。";
+      store.set("rb_pass", $("xPass").value);
+      return added({ id: "x" + Date.now(), kind: "exchange", ex: sel, server: true });
+    }
+    const key = $("xKey").value.trim(), secret = $("xSec").value.trim();
+    if (key.length < 8 || secret.length < 8) return $("xMsg").textContent = "APIキーとシークレットを両方入れてください。";
+    added({ id: "x" + Date.now(), kind: "exchange", ex: sel, key, secret });
+  };
+}
+
+function added(c) {
+  conns.push(c); save(); closeSheet(); openId = c.id; render(); refresh();
+}
+
+$("refresh").onclick = () => refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - last.at > 30000) refresh(); });
+render();
 refresh();

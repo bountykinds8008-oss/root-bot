@@ -1,11 +1,159 @@
-<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="manifest" href="/manifest.webmanifest"><title>資産一覧 | ROOT BOT</title><style>
-*{box-sizing:border-box}body{background:#0d0915;color:#eee8fb;font:16px/1.6 system-ui;margin:auto;padding:20px;max-width:680px}a{color:#c4acff}header,.row{display:flex;justify-content:space-between;align-items:center;gap:12px}section{padding:18px;background:#1d162b;border-radius:14px;margin:14px 0}h1,h2,p{margin:0}h2{font-size:17px}strong{font-size:36px}small{color:#c3b8d4}button,input{font:inherit;padding:7px;border-radius:7px}form{margin-top:16px}.row{padding:9px 0;border-bottom:1px solid #43364f}
-body{padding:clamp(14px,4vw,28px);font-family:system-ui,sans-serif}header{margin-bottom:18px}header h1{font-size:22px}button,select,input{background:#30243f;color:#f6efff;border:1px solid #574469}button,select,summary{cursor:pointer}main section:first-child{background:linear-gradient(125deg,#332147,#20182f);border:1px solid #59416f}strong{font-size:clamp(32px,9vw,52px);font-variant-numeric:tabular-nums}.row{font-size:14px;gap:16px}.row span:last-child{text-align:right}details{margin:16px 0}input{max-width:100%}footer{border-top:1px solid #43364f;margin-top:18px;padding:14px 0;font-size:14px}#status,#quote,#marketStatus{font-size:13px;color:#c6bbd5}#candles{display:block;width:100%;height:auto}#candles g{transition:transform .55s ease-out}#candles path{transition:d .55s ease-out}@media(prefers-reduced-motion:reduce){#candles *{transition:none!important}}</style><header><h1>ポートフォリオ</h1><button id="refresh">更新</button></header>
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0612">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<meta name="apple-mobile-web-app-title" content="ROOT BOT">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>資産一覧 | ROOT BOT</title>
+<style>
+  :root{--bg:#0a0612;--pane:#120c1d;--pane2:#1a1129;--edge:#ff5fc7;--edge2:#8b5cff;--text:#f1e9ff;--mute:#9a8fb0;
+        --up:#3ff2b5;--down:#ff5577;--gold:#ffc65c;--line:rgba(154,143,176,.18)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{background:var(--bg)}
+  body{color:var(--text);font:15px/1.55 -apple-system,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+    max-width:720px;margin:0 auto;padding:max(14px,env(safe-area-inset-top)) 14px max(40px,env(safe-area-inset-bottom))}
+  .num{font-variant-numeric:tabular-nums;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+  .up{color:var(--up)} .down{color:var(--down)} .mute{color:var(--mute)}
+  button,input,select{font:inherit;color:inherit}
+  button{cursor:pointer}
+  /* ヘッダー */
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .logo{font:800 13px/1 ui-monospace,monospace;letter-spacing:.24em;color:#fff;text-shadow:0 0 8px var(--edge),0 0 18px var(--edge2)}
+  .logo small{display:block;font:600 11px/1.6 -apple-system,"Hiragino Sans",sans-serif;letter-spacing:.08em;color:var(--edge);text-shadow:none;margin-top:4px}
+  .hbtn{display:flex;gap:6px}
+  .tb{background:rgba(255,95,199,.08);border:1px solid rgba(255,95,199,.4);border-radius:8px;padding:6px 11px;font-size:13px;text-decoration:none;color:var(--text);white-space:nowrap}
+  .tb:active{transform:scale(.97)} .tb[disabled]{opacity:.5}
+  .tb .spin{display:inline-block} .busy .tb .spin{animation:rot 1s linear infinite} @keyframes rot{to{transform:rotate(360deg)}}
+  .card{background:linear-gradient(180deg,rgba(255,95,199,.05),rgba(139,92,255,.03)),var(--pane);border:1px solid rgba(255,95,199,.35);
+    border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 0 18px rgba(255,95,199,.08)}
+  h2{font-size:12px;letter-spacing:.14em;color:var(--edge);font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+  h2 span{color:var(--mute);font-weight:400;letter-spacing:.02em}
+  /* 合計 */
+  .total{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+  .total .lab{font-size:12px;color:var(--mute)}
+  .total .big{font-size:clamp(30px,9vw,44px);font-weight:700;letter-spacing:-.01em;line-height:1.15;text-shadow:0 0 18px rgba(255,95,199,.25)}
+  .total .sub{font-size:12px;color:var(--mute);margin-top:4px}
+  #donut{width:118px;height:118px;display:block}
+  .legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:12px;font-size:12px}
+  .legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:1px}
+  /* 口座 */
+  .acc{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:rgba(255,255,255,.02);overflow:hidden}
+  .acc>.hd{display:grid;grid-template-columns:38px 1fr auto;gap:10px;align-items:center;padding:11px 12px;cursor:pointer}
+  .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font:800 13px/1 ui-monospace,monospace;color:#0a0612}
+  .acc .nm{font-weight:700;font-size:14px} .acc .dt{font-size:11px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acc .v{text-align:right;font-size:14px;font-weight:700} .acc .v small{display:block;font-size:10px;font-weight:400}
+  .chip{display:inline-block;font-size:10px;border-radius:99px;padding:0 7px;margin-left:5px;vertical-align:1px}
+  .chip.ok{background:rgba(63,242,181,.14);color:var(--up)} .chip.ng{background:rgba(255,85,119,.16);color:var(--down)} .chip.wait{background:rgba(154,143,176,.15);color:var(--mute)}
+  .acc .bd{display:none;padding:0 12px 10px 60px;font-size:13px}
+  .acc.open .bd{display:block}
+  .acc .bd .r{display:flex;justify-content:space-between;padding:5px 0;border-top:1px dashed var(--line)}
+  .acc .bd .err{color:var(--down);font-size:12px;padding:6px 0}
+  .acc .bd .ops{display:flex;gap:8px;margin-top:8px}
+  .acc .bd .ops button{background:none;border:1px solid var(--line);border-radius:7px;padding:4px 10px;font-size:12px;color:var(--mute)}
+  .add{width:100%;padding:14px;border-radius:12px;border:1px dashed rgba(255,95,199,.6);background:rgba(255,95,199,.06);color:#fff;font-weight:700;font-size:15px}
+  .add:active{transform:scale(.99)}
+  .empty{text-align:center;color:var(--mute);font-size:13px;padding:8px 0 14px}
+  /* 銘柄 */
+  .asset{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 0;border-top:1px dashed var(--line);font-size:14px}
+  .asset:first-of-type{border-top:none}
+  .asset .q{font-size:11px;color:var(--mute)}
+  .asset .bar{grid-column:1/3;height:4px;border-radius:9px;background:#24193a;overflow:hidden}
+  .asset .bar i{display:block;height:100%;border-radius:9px;transition:width .8s}
+  /* 相場 */
+  #candles{display:block;width:100%;height:auto}
+  #candles g{transition:transform .55s ease-out} #candles path{transition:d .55s ease-out}
+  .mkt{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+  .mkt select{background:var(--pane2);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:12px}
+  #marketStatus{font-size:12px;color:var(--mute)}
+  .foot{font-size:11px;color:var(--mute);line-height:1.7;margin-top:6px}
+  #status{font-size:12px;color:var(--mute);margin:-4px 2px 10px;min-height:1.6em}
+  /* つなぐシート */
+  .sheet{position:fixed;inset:0;z-index:50;display:none;background:rgba(5,3,10,.7);backdrop-filter:blur(4px)}
+  .sheet.show{display:block}
+  .sheet .pn{position:absolute;left:0;right:0;bottom:0;max-height:92dvh;overflow:auto;background:var(--pane);border-top:1px solid var(--edge);
+    border-radius:18px 18px 0 0;padding:14px 16px max(20px,env(safe-area-inset-bottom));max-width:720px;margin:0 auto;animation:up .3s cubic-bezier(.2,.9,.3,1)}
+  @keyframes up{from{transform:translateY(40px);opacity:0}}
+  .sheet .grip{width:40px;height:4px;border-radius:9px;background:var(--line);margin:0 auto 12px}
+  .sheet h3{font-size:16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+  .sheet h3 button{background:none;border:none;color:var(--mute);font-size:22px;line-height:1}
+  .tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--pane2);border-radius:10px;padding:3px;margin-bottom:14px}
+  .tabs button{border:none;background:none;padding:9px;border-radius:8px;font-weight:700;color:var(--mute)}
+  .tabs button.on{background:var(--edge);color:#1a0716}
+  .pick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+  .pick button{background:var(--pane2);border:1px solid var(--line);border-radius:12px;padding:12px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:7px;font-size:12px}
+  .pick button.on{border-color:var(--edge);box-shadow:0 0 0 1px var(--edge) inset,0 0 16px rgba(255,95,199,.25)}
+  .pick .ic{width:34px;height:34px;border-radius:10px;font-size:12px}
+  .fld{margin-bottom:12px} .fld label{display:block;font-size:12px;color:var(--mute);margin-bottom:5px}
+  .fld input{width:100%;background:var(--pane2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:16px}
+  .fld input:focus{outline:none;border-color:var(--edge)}
+  .nets{display:flex;flex-wrap:wrap;gap:6px}
+  .nets button{border:1px solid var(--line);background:var(--pane2);border-radius:99px;padding:6px 12px;font-size:12px;color:var(--mute)}
+  .nets button.on{border-color:var(--up);color:var(--up);background:rgba(63,242,181,.08)}
+  .help{font-size:12px;color:var(--mute);background:rgba(139,92,255,.08);border:1px solid rgba(139,92,255,.25);border-radius:10px;padding:10px 12px;margin-bottom:12px;line-height:1.7}
+  .help b{color:var(--text)} .help.warn{background:rgba(255,198,92,.08);border-color:rgba(255,198,92,.35)} .help.warn b{color:var(--gold)}
+  .alt{width:100%;margin-bottom:12px;padding:11px;border-radius:10px;border:1px solid rgba(139,92,255,.5);background:rgba(139,92,255,.1);font-weight:700;font-size:14px;text-decoration:none;display:block;text-align:center;color:#fff}
+  .toggle{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px}
+  .toggle input{width:18px;height:18px;accent-color:var(--edge)}
+  .go{width:100%;padding:14px;border-radius:12px;border:none;background:var(--edge);color:#1a0716;font-weight:800;font-size:16px}
+  .go[disabled]{opacity:.45}
+  .msg{font-size:12px;color:var(--down);min-height:1.4em;margin:-4px 0 8px}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">ROOT BOT<small>資産一覧</small></div>
+  <div class="hbtn"><button class="tb" id="refresh"><span class="spin">↻</span> 更新</button><a class="tb" href="/desk">ボット画面</a></div>
+</header>
+<p id="status" role="status"></p>
 
-<p id="status" role="status"></p><main hidden><section><h2 id="label"></h2><strong id="total"></strong><p id="quote"></p></section>
-<section><h2>口座別</h2><div id="accounts"></div></section><section><h2>銘柄別</h2><div id="assets"></div></section>
-<small>MetaMaskは選択したネットワークのBNBまたはETHを表示します。BEP-20トークンとBinance取引所の口座残高は集計対象外です。構成比は円換算できた資産から計算します。</small></main>
-<section><header><h2>ローソク足</h2><small>5分足</small></header><p id="marketStatus" role="status">相場を取得中…</p><svg id="candles" viewBox="0 0 400 130" role="img" aria-label="直近の5分足チャート"></svg></section>
-<details><summary>ウォレット設定</summary><form id="wallet"><label>ネットワーク <select id="chain"><option value="bsc">BNB Smart Chain（Binance）</option><option value="eth">Ethereum</option></select></label><br><label>MetaMaskの公開アドレス <input id="address" placeholder="0x…" pattern="0x[0-9a-fA-F]{40}" autocomplete="off"></label><button>反映</button></form></details><footer><a href="/desk">ボット操作を開く</a></footer>
-<script type="module" src="/candles.js"></script><script type="module" src="/portfolio.js"></script></html>
+<section class="card">
+  <div class="total">
+    <div><div class="lab" id="label">合計（円換算）</div><div class="big num" id="total">—</div><div class="sub" id="sub">口座をつなぐと合計が出ます</div></div>
+    <canvas id="donut" width="118" height="118" aria-label="資産の割合"></canvas>
+  </div>
+  <div class="legend" id="legend"></div>
+</section>
+
+<section class="card">
+  <h2>つないでいる口座<span id="accN"></span></h2>
+  <div id="accounts"></div>
+  <button class="add" id="addBtn">＋ ウォレット・取引所をつなぐ</button>
+</section>
+
+<section class="card" id="assetCard" hidden>
+  <h2>銘柄別<span>割合</span></h2>
+  <div id="assets"></div>
+</section>
+
+<section class="card">
+  <div class="mkt"><h2 style="margin:0">相場<span>&nbsp;5分足</span></h2>
+    <select id="chain" aria-label="相場の銘柄"><option value="bsc">BNB / USDT</option><option value="eth">ETH / USDT</option></select></div>
+  <p id="marketStatus" role="status">相場を取得中…</p>
+  <svg id="candles" viewBox="0 0 400 130" role="img" aria-label="直近の5分足チャート"></svg>
+</section>
+
+<p class="foot">ウォレットは Ethereum・BNB Chain・Polygon・Arbitrum・Base の基本通貨と USDT/USDC を表示します（ほかのトークン・NFTは対象外）。取引所は「残高を見る」だけの権限のAPIキーを使います。キーはこの端末の中だけに保存し、残高を取りに行くときだけ使います。円換算は bitbank の価格（無いものは CoinGecko・GMOコインの換算レート）で計算します。</p>
+
+<!-- つなぐシート -->
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shT">
+  <div class="pn">
+    <div class="grip"></div>
+    <h3><span id="shT">つなぐ先を選ぶ</span><button id="shX" aria-label="閉じる">×</button></h3>
+    <div class="tabs"><button data-tab="wallet" class="on">ウォレット</button><button data-tab="exchange">取引所</button></div>
+    <div class="pick" id="pick"></div>
+    <div id="form"></div>
+  </div>
+</div>
+
+<script type="module" src="/candles.js"></script>
+<script type="module" src="/portfolio.js"></script>
+</body>
+</html>
