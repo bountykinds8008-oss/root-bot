@@ -123,6 +123,11 @@ class Private:
             payload.update(type="limit", price=f"{px:.{price_digits}f}")
             return self.post("/user/spot/order", payload)
 
+    def limit_order(self, pair, side, amount, price):
+        """指値。post_only=True で、すぐ約定してテイカーになる場合は取引所が断る（必ずメイカー）。"""
+        return self.post("/user/spot/order", {"pair": pair, "side": side, "type": "limit",
+                                              "amount": amount, "price": price, "post_only": True})
+
     def stop_order(self, pair, side, amount, trigger_price):
         """逆指値（価格が trigger_price に届いたら成行で売る）。"""
         return self.post("/user/spot/order", {"pair": pair, "side": side, "type": "stop",

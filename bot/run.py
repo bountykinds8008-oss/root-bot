@@ -46,7 +46,9 @@ def save(state, summary, market):
         "catchup_bars": state.get("catchup_bars", 0),   # 実行の遅れで後追い処理した足の数（通算）
         "version": "v3",
         "runs": state.get("runs", [])[-200:],               # 実行した時刻（今日の振り返り用）
-        "started_at": state.get("started_at"),              # 仮想売買を始めた時刻（本番準備の確認用）
+        "started_at": state.get("started_at"),
+        "orders": [{"pair": p, "limit": o["limit"], "placed_at": o["placed_at"], "deadline": o["deadline"]}
+                   for p, o in state.get("orders", {}).items()],   # 指値で待っている買い注文              # 仮想売買を始めた時刻（本番準備の確認用）
         "live_max_jpy": C.LIVE_MAX_JPY,
     }
     STATUS.write_text(json.dumps(status, ensure_ascii=False))

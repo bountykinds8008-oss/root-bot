@@ -300,6 +300,7 @@ function applyStatus(d){
   $("tSt2").textContent=d.halted?"翌月に自動再開":d.defensive?"目標達成・半分で運用":`保有 ${d.positions.length}/3`;
   $("pos").innerHTML=d.positions.length?d.positions.map(x=>{const px=S.tick[x.pair]?S.tick[x.pair].last:x.price,r=px?px/x.entry-1:0;
     return`<div class="pos"><span style="color:${COIN[x.pair]}">${SYM[x.pair]}</span><span class="num">${fmt(x.entry,x.pair)}</span><span class="num ${cls(r)}">${pct(r)}</span></div>`}).join(""):`<div class="pos"><span style="color:var(--mute)">なし（チャンス待ち）</span></div>`;
+  if((d.orders||[]).length)$("pos").innerHTML+=d.orders.map(o=>`<div class="pos"><span style="color:${COIN[o.pair]}">${SYM[o.pair]}</span><span class="num">指値 ${fmt(o.limit,o.pair)}</span><span class="gold" style="font-size:10px">待機中〜${hm(o.deadline)}</span></div>`).join("");
   const fresh=d.trades.filter(x=>x.ts>S.seen).sort((a,b)=>a.ts-b.ts);
   $("log").innerHTML=[...d.trades].reverse().slice(0,14).map(x=>{const late=/後追い/.test(x.reason||"");return`<div class="row"><span class="tag ${x.side}${late?" late":""}">${x.side==="buy"?"BUY":"SELL"}</span>
     <div><span style="color:${COIN[x.pair]}">${SYM[x.pair]}</span> ${fmt(x.price,x.pair)}${late?'<span class="lt">後追い</span>':""}<small>${hm(x.ts)}・${(x.reason||"").replace(/（.*後追い.*）/,"")}</small></div>

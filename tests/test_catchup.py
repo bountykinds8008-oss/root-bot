@@ -108,6 +108,47 @@ class CatchUpTest(unittest.TestCase):
         self.assertEqual(br.stop_hit("btc_jpy", pos, bar=(105, 106, 99, 104, 1, T0 + B))["px"], 100)
 
 
+class MakerEntryTest(unittest.TestCase):
+    def setUp(self):
+        self._pairs = C.PAIRS
+        C.PAIRS = ["btc_jpy"]
+
+    def tearDown(self):
+        C.PAIRS = self._pairs
+
+    def _breakout(self, after):
+        rnd = random.Random(5)
+        c = [10_000_000 * math.exp(rnd.gauss(0, 0.003)) for _ in range(140)]
+        c.append(c[-1] * 1.03)                       # 140本目で上抜け
+        return bars_from(c + [c[-1] * f for f in after]), c[-1]
+
+    def test_limit_fills_when_price_dips(self):
+        bars, brk = self._breakout([0.995, 1.01])
+        st, br = new_state(100_000, "paper"), PaperBroker()
+        step(st, br, {"btc_jpy": market_at(bars, 139)}, bars[139][5] + B)
+        step(st, br, {"btc_jpy": market_at(bars, 140)}, bars[140][5] + B)
+        self.assertIn("btc_jpy", st["orders"])
+        self.assertEqual(st["positions"], {})
+        self.assertAlmostEqual(br.equity(st, {"btc_jpy": market_at(bars, 140)}), 100_000, delta=1)  # 取り置き中も資産は同じ
+        step(st, br, {"btc_jpy": market_at(bars, 141)}, bars[141][5] + B)
+        self.assertNotIn("btc_jpy", st["orders"])
+        t = st["trades"][-1]
+        self.assertIn("（指値）", t["reason"])
+        self.assertAlmostEqual(t["price"], brk, delta=1)       # 指値の値段で約定
+        self.assertEqual(t["fee"], 0.0)                         # BTCのメイカー手数料は0%
+
+    def test_limit_times_out_then_market(self):
+        bars, brk = self._breakout([1.02, 1.04, 1.05])         # 下がらずに上がり続ける
+        bars = [b if i <= 140 else (b[0], b[1], max(b[2], brk * 1.001), b[3], b[4], b[5]) for i, b in enumerate(bars)]
+        st, br = new_state(100_000, "paper"), PaperBroker()
+        for i in range(139, len(bars)):
+            m = market_at(bars, i)
+            m["low"] = bars[i][2]
+            step(st, br, {"btc_jpy": m}, bars[i][5] + B)
+        self.assertIn("btc_jpy", st["positions"])
+        self.assertIn("指値→成行", [t for t in st["trades"] if t["side"] == "buy"][-1]["reason"])
+
+
 class FakePrivate:
     """bitbank の代わり（本物には一切つながない）。"""
     def __init__(self):
@@ -138,6 +179,16 @@ class FakePrivate:
             self.btc -= a
         return self._new(status="FULLY_FILLED", executed_amount=amount, average_price=str(ref))
 
+    def limit_order(self, pair, side, amount, price):
+        self.calls.append(("limit", side, amount, price))
+        self.jpy -= float(amount) * float(price)
+        return self._new(status="UNFILLED", executed_amount="0", average_price="0", amount=amount, price=price)
+
+    def fill_limit(self, oid):
+        o = self.orders[oid]
+        self.btc += float(o["amount"])
+        o.update(status="FULLY_FILLED", executed_amount=o["amount"], average_price=o["price"])
+
     def stop_order(self, pair, side, amount, trigger):
         self.calls.append(("stop", amount, trigger))
         self.locked += float(amount)
@@ -152,6 +203,9 @@ class FakePrivate:
         if o["status"] == "INACTIVE":
             o["status"] = "CANCELED_UNFILLED"
             self.locked -= float(o["amount"])
+        elif o["status"] == "UNFILLED":
+            o["status"] = "CANCELED_UNFILLED"
+            self.jpy += float(o["amount"]) * float(o["price"])
         return dict(o)
 
     def trigger(self, oid, px):   # 取引所で逆指値が約定したことにする
@@ -207,6 +261,22 @@ class LiveBrokerTest(unittest.TestCase):
         self.assertAlmostEqual(sold, amt)          # 拘束が外れて全量売れる
         self.assertAlmostEqual(fp.btc, 0.0)
         self.assertEqual(fp.locked, 0.0)
+
+    def test_live_limit_order_fill_and_cancel(self):
+        fp = FakePrivate()
+        br = LiveBroker(fp)
+        st = new_state(0, "live")
+        o = br.place_limit_buy(st, "btc_jpy", 20_000, 10_000_000)
+        self.assertEqual(fp.calls[-1], ("limit", "buy", "0.0019", "10000000"))
+        order = {**o, "limit": 10_000_000}
+        st["orders"] = {"btc_jpy": order}
+        self.assertLess(br.cash(st), C.LIVE_MAX_JPY - 18_000)    # 取り置き分は使えない
+        self.assertIsNone(br.limit_filled(st, "btc_jpy", order))
+        fp.fill_limit(order["order_id"])
+        f = br.limit_filled(st, "btc_jpy", order)
+        self.assertAlmostEqual(f["amount"], 0.0019)
+        o2 = {**br.place_limit_buy(st, "btc_jpy", 20_000, 10_000_000), "limit": 10_000_000}
+        self.assertIsNone(br.cancel_limit(st, "btc_jpy", o2))   # 約定なしで取消
 
     def test_live_cap_limits_budget(self):
         fp = FakePrivate()          # 口座には10万円

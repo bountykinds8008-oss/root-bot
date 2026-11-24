@@ -161,6 +161,12 @@ def step(state, broker, market, now_ms):
                 broker.move_stop(state, pair, pos)      # 本番：取引所の逆指値を引き上げ
             continue
 
+        # ①' 指値の買い注文を出している銘柄：約定したか・待ちすぎたかを確認
+        order = state.setdefault("orders", {}).get(pair)
+        if order:
+            _check_order(state, broker, pair, order, bars, todo, m, now_ms, halted, log)
+            continue
+
         # ② 持っていない銘柄：最新の確定足で買い判断（＋見逃した足で出た買いの後追い）
         if not todo or halted or state["cooldown_until"].get(pair, 0) >= bars[-1][5]:
             continue
@@ -188,6 +194,18 @@ def step(state, broker, market, now_ms):
         if budget < broker.min_order_jpy(pair):
             fn["filtered"]["funds"] = fn["filtered"].get("funds", 0) + 1
             continue
+        label = ("守りモード" if defensive else "") + plan["label"]
+        if C.MAKER_ENTRY and plan["stop"] is None:
+            # 指値：今の値段（確定足の終値と、いま買える気配の安いほう）で待つ
+            limit = min(sig["close"], m["bid"])
+            o = broker.place_limit_buy(state, pair, budget, limit)
+            if o:
+                state["orders"][pair] = {**o, "limit": limit, "placed_at": now_ms, "budget": budget,
+                                         "deadline": now_ms + C.MAKER_WAIT_BARS * C.BAR_MS,
+                                         "atr": sig["atr"], "label": label}
+                fn["entered"] += 1
+                log.append(f"{pair} 指値で買い注文 {limit:,.3f}（{C.MAKER_WAIT_BARS * 4}時間まで待つ）")
+                continue
         amt, px, fee = broker.buy(state, pair, budget, m["ask"])
         if amt <= 0:
             continue
@@ -197,7 +215,6 @@ def step(state, broker, market, now_ms):
         pos = {"amount": amt, "entry": px, "high": max(px, plan["high"]),
                "opened_at": now_ms, "stop": stop}
         state["positions"][pair] = pos
-        label = ("守りモード" if defensive else "") + plan["label"]
         _trade(state, now_ms, pair, "buy", amt, px, fee, None, label)
         fn["entered"] += 1
         broker.place_stop(state, pair, pos)             # 本番：取引所に逆指値の損切りを置く
@@ -209,6 +226,33 @@ def step(state, broker, market, now_ms):
     state["log"] = (state["log"] + [[now_ms, x] for x in log])[-100:]
     return {"equity": equity, "month_ret": equity / base - 1 if base else 0,
             "halted": halted, "defensive": defensive}
+
+
+def _check_order(state, broker, pair, order, bars, todo, m, now_ms, halted, log):
+    """指値の買い注文：約定していれば保有に、待ちすぎ・停止中なら取り消す（待ちすぎは成行で買う）。"""
+    fill = broker.limit_filled(state, pair, order, bars=[bars[i] for i in todo], low=m["low"])
+    if not fill and (halted or now_ms >= order["deadline"]):
+        fill = broker.cancel_limit(state, pair, order)            # 一部だけ約定していればその分
+        if not fill and not halted:
+            budget = min(order["budget"], broker.cash(state) * 0.995)
+            if budget >= broker.min_order_jpy(pair):
+                amt, px, fee = broker.buy(state, pair, budget, m["ask"])
+                if amt > 0:
+                    fill = {"amount": amt, "price": px, "fee": fee, "late": True}
+        if not fill:
+            state["orders"].pop(pair, None)
+            log.append(f"{pair} 指値の買い注文を取り消し" + ("（停止中）" if halted else ""))
+            return
+    if not fill:
+        return
+    state["orders"].pop(pair, None)
+    px = fill["price"]
+    pos = {"amount": fill["amount"], "entry": px, "high": px, "opened_at": now_ms,
+           "stop": px - C.STOP_ATR * order["atr"]}
+    state["positions"][pair] = pos
+    _trade(state, now_ms, pair, "buy", fill["amount"], px, fill["fee"], None,
+           order["label"] + ("（指値→成行）" if fill.get("late") else "（指値）"))
+    broker.place_stop(state, pair, pos)
 
 
 def _late_entry(bars, missed, ask):

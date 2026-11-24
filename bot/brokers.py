@@ -22,7 +22,7 @@ class PaperBroker:
         return 1000
 
     def equity(self, state, market):
-        eq = state["cash"]
+        eq = state["cash"] + sum(o.get("reserved", 0) for o in state.get("orders", {}).values())
         for pair, pos in state["positions"].items():
             px = market[pair]["bid"] if pair in market else pos["entry"]
             eq += pos["amount"] * px
@@ -41,6 +41,28 @@ class PaperBroker:
         fee = gross * C.TAKER_FEE[pair]
         state["cash"] += gross - fee
         return pos["amount"], px, fee
+
+    # ---- 指値の買い（仮想）：お金を取り置き、売り手が指値より下まで来たら約定 ----
+    def place_limit_buy(self, state, pair, jpy, limit):
+        state["cash"] -= jpy
+        return {"reserved": jpy}
+
+    def limit_filled(self, state, pair, order, bars=(), low=None):
+        lim, hit = order["limit"], None
+        for b in bars:                                   # 注文を出したあとに始まった足だけ
+            if b[5] >= order["placed_at"] and b[2] < lim:
+                hit = min(lim, b[0]); break
+        if hit is None and low is not None and low < lim:
+            hit = lim
+        if hit is None:
+            return None
+        jpy = order.pop("reserved")
+        fee = jpy * C.MAKER_FEE[pair]
+        return {"amount": (jpy - fee) / hit, "price": hit, "fee": fee}
+
+    def cancel_limit(self, state, pair, order):
+        state["cash"] += order.pop("reserved", 0)
+        return None
 
     # 仮想売買では「取引所に逆指値を置いていた」のと同じ動きをまねる
     def stop_hit(self, pair, pos, bar=None, low=None, bid=None):
@@ -79,14 +101,15 @@ class LiveBroker:
         jpy = self.bal.get("jpy", 0.0)
         if C.LIVE_MAX_JPY is None:
             return jpy
-        used = sum(p["amount"] * p["entry"] for p in (state or {}).get("positions", {}).values())
+        used = sum(p["amount"] * p["entry"] for p in (state or {}).get("positions", {}).values()) + \
+            sum(o.get("reserved", 0) for o in (state or {}).get("orders", {}).values())
         return max(0.0, min(jpy, C.LIVE_MAX_JPY - used))
 
     def min_order_jpy(self, pair):
         return 1000
 
     def equity(self, state, market):
-        eq = self.cash(state)
+        eq = self.cash(state) + sum(o.get("reserved", 0) for o in (state or {}).get("orders", {}).values())
         for pair, pos in state["positions"].items():
             px = market[pair]["bid"] if pair in market else pos["entry"]
             eq += pos["amount"] * px
@@ -156,6 +179,50 @@ class LiveBroker:
         ex, px = self._fill(pair, res, bid)
         self.bal = self.p.balances()
         return ex, px, ex * px * C.TAKER_FEE[pair]
+
+    # ---- 指値の買い（本番）：post_only（必ずメイカー）で出す。断られたら None → 成行で買う ----
+    def place_limit_buy(self, state, pair, jpy, limit):
+        amt = self._amt(pair, jpy / limit * 0.998)
+        if amt < self._min_amt(pair) or amt <= 0:
+            return None
+        try:
+            res = self.p.limit_order(pair, "buy", self._amt_s(pair, amt), self._px_s(pair, limit))
+        except Exception as e:
+            print(f"[warn] 指値を出せませんでした {pair}: {e}", file=sys.stderr)
+            return None
+        if res.get("status") in ("CANCELED_UNFILLED", "REJECTED"):
+            return None
+        self.bal = self.p.balances()
+        return {"order_id": res.get("order_id"), "reserved": amt * limit, "amount_req": amt}
+
+    def limit_filled(self, state, pair, order, bars=(), low=None):
+        try:
+            o = self.p.get_order(pair, order["order_id"])
+        except Exception as e:
+            print(f"[warn] 指値の確認 {pair}: {e}", file=sys.stderr)
+            return None
+        if o.get("status") != "FULLY_FILLED":
+            return None
+        ex, px = float(o["executed_amount"]), float(o["average_price"])
+        order.pop("reserved", None)
+        self.bal = self.p.balances()
+        return {"amount": ex, "price": px, "fee": ex * px * C.MAKER_FEE[pair]}
+
+    def cancel_limit(self, state, pair, order):
+        try:
+            o = self.p.cancel_order(pair, order["order_id"])
+        except Exception:
+            try:
+                o = self.p.get_order(pair, order["order_id"])
+            except Exception:
+                o = {}
+        order.pop("reserved", None)
+        self.bal = self.p.balances()
+        ex = float(o.get("executed_amount") or 0)
+        if ex > 0:                                   # 取り消す前に約定した分は保有にする
+            px = float(o.get("average_price") or order["limit"])
+            return {"amount": ex, "price": px, "fee": ex * px * C.MAKER_FEE[pair]}
+        return None
 
     # ---- 取引所に置く損切り ----
     def place_stop(self, state, pair, pos):
