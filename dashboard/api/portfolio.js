@@ -22,8 +22,7 @@ async function exchange() {
   return { rows: rows.filter(r => r.qty > 0), time: Date.now() };
 }
 
-async function wallet() {
-  const address = process.env.PORTFOLIO_ETH_ADDRESS;
+async function wallet(address) {
   if (!address) return { state: "未設定" };
   if (!/^0x[0-9a-f]{40}$/i.test(address)) return { state: "アドレス設定エラー" };
   const rpc = await json("https://ethereum-rpc.publicnode.com", {
@@ -43,10 +42,10 @@ async function prices() {
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");
-  if (!process.env.DASH_PASSWORD || req.headers["x-dash-pass"] !== process.env.DASH_PASSWORD)
-    return res.status(401).json({ error: "unauthorized" });
+  const owner = Boolean(process.env.DASH_PASSWORD && req.headers["x-dash-pass"] === process.env.DASH_PASSWORD);
   if (req.method !== "GET") return res.status(405).end();
-  const [bank, eth, quotes] = await Promise.all([exchange, wallet, prices].map(fn =>
+  const [bank, eth, quotes] = await Promise.all([owner ? exchange : async () => ({state: "未接続"}),
+    () => wallet(req.query.address || (owner && process.env.PORTFOLIO_ETH_ADDRESS)), prices].map(fn =>
     fn().catch(() => ({ state: "取得失敗" }))));
   return res.status(200).json({ bank, eth, quotes });
 }
