@@ -11,6 +11,7 @@ import hmac
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -90,8 +91,10 @@ class Private:
         return {"ACCESS-KEY": self.key, "ACCESS-NONCE": nonce,
                 "ACCESS-SIGNATURE": sig, "Content-Type": "application/json"}
 
-    def get(self, path):
+    def get(self, path, query=None):
         full = "/v1" + path
+        if query:
+            full += "?" + urllib.parse.urlencode(query)
         req = urllib.request.Request(PRIVATE + full, headers=self._headers(full))
         return _http(req, retries=2)
 
@@ -108,7 +111,8 @@ class Private:
         d = _http(urllib.request.Request(PRIVATE + "/v1/spot/pairs"))
         return {p["name"]: p for p in d["pairs"]}
 
-    def order(self, pair, side, amount, ref_price):
+    def order(self, pair, side, amount, ref_price, price_digits=0):
+        """成行注文。amount は桁をそろえた文字列で渡す。"""
         payload = {"pair": pair, "side": side, "type": "market", "amount": amount}
         try:
             return self.post("/user/spot/order", payload)
@@ -116,5 +120,16 @@ class Private:
             if str(e.code) != "70020":  # 成行が制限されているときだけ指値に切替
                 raise
             px = ref_price * (1.003 if side == "buy" else 0.997)
-            payload.update(type="limit", price=str(round(px)))
+            payload.update(type="limit", price=f"{px:.{price_digits}f}")
             return self.post("/user/spot/order", payload)
+
+    def stop_order(self, pair, side, amount, trigger_price):
+        """逆指値（価格が trigger_price に届いたら成行で売る）。"""
+        return self.post("/user/spot/order", {"pair": pair, "side": side, "type": "stop",
+                                              "amount": amount, "trigger_price": trigger_price})
+
+    def get_order(self, pair, order_id):
+        return self.get("/user/spot/order", {"pair": pair, "order_id": order_id})
+
+    def cancel_order(self, pair, order_id):
+        return self.post("/user/spot/cancel_order", {"pair": pair, "order_id": int(order_id)})

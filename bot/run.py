@@ -1,4 +1,4 @@
-"""1回分の実行（GitHub Actions が15分ごとに呼ぶ）。
+"""1回分の実行（GitHub Actions が30分ごとに呼ぶ。遅れても engine が後追い処理する）。
 
   python -m bot.run
 状態は data/state.json、画面用データは data/status.json に保存する。
@@ -43,6 +43,8 @@ def save(state, summary, market):
         "monthly": state["monthly"], "log": state["log"][-30:],
         "bot_stats": state.get("bot_stats", {}),
         "funnel": state.get("funnel", {}), "last_reject": state.get("last_reject", {}),
+        "catchup_bars": state.get("catchup_bars", 0),   # 実行の遅れで後追い処理した足の数（通算）
+        "version": "v3",
     }
     STATUS.write_text(json.dumps(status, ensure_ascii=False))
     # 公開用コピー：前回から約1時間たったとき、または売買があったときだけ更新

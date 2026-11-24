@@ -76,7 +76,12 @@ def _funnel(state, mk):
 
 # ---------------- 1回分の処理 ----------------
 def step(state, broker, market, now_ms):
-    """market[pair] = {"bars": 確定足, "bid": 売れる価格, "ask": 買える価格, "low": 前回からの安値}"""
+    """market[pair] = {"bars": 確定足, "bid": 売れる価格, "ask": 買える価格, "low": 前回からの安値}
+
+    GitHubの定期実行は遅れ・間引きが多く、4時間足を何本も飛ばすことがある。
+    そこで「前回処理した足の次から最新の確定足まで」を古い順に全部たどり、
+    損切り・追従損切りの引き上げ・手じまいを見逃さないようにしている（取りこぼし防止）。
+    """
     log = []
     equity = broker.equity(state, market)
     mk = month_key(now_ms)
@@ -113,53 +118,89 @@ def step(state, broker, market, now_ms):
         m = market.get(pair)
         if not m or not m["bars"]:
             continue
-        pos = state["positions"].get(pair)
+        bars = m["bars"]
+        last_done = state["last_bar_ts"].get(pair)
+        if last_done is None:
+            todo = [len(bars) - 1]                       # 初回は最新の足だけ
+        else:
+            todo = [i for i, b in enumerate(bars) if b[5] > last_done]
+        state["last_bar_ts"][pair] = bars[-1][5]
+        if len(todo) > 1:
+            state["catchup_bars"] = state.get("catchup_bars", 0) + len(todo) - 1
 
-        # 損切り（毎回チェック）
-        if pos:
-            if m["low"] <= pos["stop"]:
-                _sell(state, broker, pair, market, now_ms, "損切り", fill=min(pos["stop"], m["bid"]))
+        # ① 持っている銘柄：見逃した足も含めて、古い順に損切り・追従・手じまいを確認
+        for i in todo:
+            pos = state["positions"].get(pair)
+            if not pos:
+                break
+            b = bars[i]
+            hit = broker.stop_hit(pair, pos, bar=b)
+            if hit:
+                _sell(state, broker, pair, market, now_ms, "損切り", hit=hit)
+                break
+            sig = signal(bars[:i + 1])
+            if not sig:
                 continue
+            pos["high"] = max(pos["high"], sig["close"])
+            new_stop = pos["high"] - C.TRAIL_ATR * sig["atr"]
+            if new_stop > pos["stop"]:
+                pos["stop"] = new_stop
+                pos["stop_dirty"] = True
+            if sig["exit_trend"]:
+                late = "" if i == len(bars) - 1 else "（実行の遅れを後追い）"
+                _sell(state, broker, pair, market, now_ms, "トレンド終了" + late)
+                break
 
-        # 足が確定したときだけ判断
-        last_ts = m["bars"][-1][5]
-        if state["last_bar_ts"].get(pair) == last_ts:
+        pos = state["positions"].get(pair)
+        if pos:
+            # 形成中の足：前回からの安値（ティッカー）でも確認
+            hit = broker.stop_hit(pair, pos, low=m["low"], bid=m["bid"])
+            if hit:
+                _sell(state, broker, pair, market, now_ms, "損切り", hit=hit)
+            elif pos.pop("stop_dirty", False):
+                broker.move_stop(state, pair, pos)      # 本番：取引所の逆指値を引き上げ
             continue
-        state["last_bar_ts"][pair] = last_ts
-        sig = signal(m["bars"])
+
+        # ② 持っていない銘柄：最新の確定足で買い判断（＋見逃した足で出た買いの後追い）
+        if not todo or halted or state["cooldown_until"].get(pair, 0) >= bars[-1][5]:
+            continue
+        sig = signal(bars)
         if not sig:
             continue
-
-        if pos:
-            pos["high"] = max(pos["high"], sig["close"])
-            pos["stop"] = max(pos["stop"], pos["high"] - C.TRAIL_ATR * sig["atr"])
-            if sig["exit_trend"]:
-                _sell(state, broker, pair, market, now_ms, "トレンド終了")
-        elif not halted and state["cooldown_until"].get(pair, 0) < last_ts:
-            fn = _funnel(state, mk)
-            fn["checked"] += 1
-            if not sig["entry"]:
-                fn["no_setup"] += 1
-                continue
-            reason = risk_filter(m["bars"], sig, m, state.get("bot_stats", {}).get(pair, {}))
-            if reason:
-                fn["filtered"][reason] = fn["filtered"].get(reason, 0) + 1
-                state.setdefault("last_reject", {})[pair] = {"ts": now_ms, "reason": FILTER_NAMES[reason]}
-                log.append(f"{pair} 買い条件はそろったが見送り：{FILTER_NAMES[reason]}")
-                continue
-            budget = equity * C.ALLOC_PER_PAIR * size_mult * sig["size"]
-            budget = min(budget, broker.cash(state) * 0.995)
-            if budget < broker.min_order_jpy(pair):
-                fn["filtered"]["funds"] = fn["filtered"].get("funds", 0) + 1
-            else:
-                amt, px, fee = broker.buy(state, pair, budget, m["ask"])
-                if amt > 0:
-                    state["positions"][pair] = {
-                        "amount": amt, "entry": px, "high": px, "opened_at": now_ms,
-                        "stop": px - C.STOP_ATR * sig["atr"]}
-                    _trade(state, now_ms, pair, "buy", amt, px, fee, None,
-                           "守りモード買い" if defensive else "トレンド買い")
-                    fn["entered"] += 1
+        fn = _funnel(state, mk)
+        fn["checked"] += 1
+        plan = None
+        if sig["entry"]:
+            plan = {"stop": None, "high": sig["close"], "label": "トレンド買い"}
+        elif len(todo) > 1:
+            plan = _late_entry(bars, todo[:-1], m["ask"])
+        if not plan:
+            fn["no_setup"] += 1
+            continue
+        reason = risk_filter(bars, sig, m, state.get("bot_stats", {}).get(pair, {}))
+        if reason:
+            fn["filtered"][reason] = fn["filtered"].get(reason, 0) + 1
+            state.setdefault("last_reject", {})[pair] = {"ts": now_ms, "reason": FILTER_NAMES[reason]}
+            log.append(f"{pair} 買い条件はそろったが見送り：{FILTER_NAMES[reason]}")
+            continue
+        budget = equity * C.ALLOC_PER_PAIR * size_mult * sig["size"]
+        budget = min(budget, broker.cash(state) * 0.995)
+        if budget < broker.min_order_jpy(pair):
+            fn["filtered"]["funds"] = fn["filtered"].get("funds", 0) + 1
+            continue
+        amt, px, fee = broker.buy(state, pair, budget, m["ask"])
+        if amt <= 0:
+            continue
+        stop = px - C.STOP_ATR * sig["atr"]
+        if plan["stop"] is not None:                    # 後追い：その時の損切り位置を引き継ぐ
+            stop = min(plan["stop"], px - sig["atr"])   # ただし買値より最低ATR1本ぶん下
+        pos = {"amount": amt, "entry": px, "high": max(px, plan["high"]),
+               "opened_at": now_ms, "stop": stop}
+        state["positions"][pair] = pos
+        label = ("守りモード" if defensive else "") + plan["label"]
+        _trade(state, now_ms, pair, "buy", amt, px, fee, None, label)
+        fn["entered"] += 1
+        broker.place_stop(state, pair, pos)             # 本番：取引所に逆指値の損切りを置く
 
     equity = broker.equity(state, market)
     state["equity_history"].append([now_ms, round(equity, 2)])
@@ -170,10 +211,36 @@ def step(state, broker, market, now_ms):
             "halted": halted, "defensive": defensive}
 
 
-def _sell(state, broker, pair, market, now_ms, reason, fill=None):
+def _late_entry(bars, missed, ask):
+    """見逃した足で買いサインが出ていたか。出ていて、今も生きている（損切り・手じまいに
+    なっていない）なら、その時の損切り位置を引き継いで今買う。値段が逃げすぎていたら買わない。"""
+    first = None
+    for i in missed:
+        s = signal(bars[:i + 1])
+        if s and s["entry"]:
+            first = i
+            break
+    if first is None:
+        return None
+    s = signal(bars[:first + 1])
+    entry, high, stop = s["close"], s["close"], s["close"] - C.STOP_ATR * s["atr"]
+    for i in range(first + 1, len(bars)):
+        b = bars[i]
+        if b[2] <= stop:
+            return None
+        s = signal(bars[:i + 1])
+        high = max(high, s["close"])
+        stop = max(stop, high - C.TRAIL_ATR * s["atr"])
+        if s["exit_trend"]:
+            return None
+    if ask > entry + C.LATE_ENTRY_MAX_ATR * s["atr"] or ask <= stop:
+        return None
+    return {"stop": stop, "high": high, "label": "トレンド買い（後追い）"}
+
+
+def _sell(state, broker, pair, market, now_ms, reason, hit=None):
     pos = state["positions"].pop(pair)
-    px_ref = fill if fill is not None else market[pair]["bid"]
-    amt, px, fee = broker.sell(state, pair, pos["amount"], px_ref)
+    amt, px, fee = broker.sell(state, pair, pos, market[pair]["bid"], hit=hit)
     pnl = (px - pos["entry"]) * amt - fee
     _trade(state, now_ms, pair, "sell", amt, px, fee, pnl, reason)
     # キャラ育成用の成績（画面のレベル表示に使う）

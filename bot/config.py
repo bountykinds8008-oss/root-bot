@@ -35,6 +35,8 @@ STOP_ATR = 4.0        # 初期損切り = 買値 - 4×ATR
 TRAIL_ATR = 4.0       # 追従損切り = 買ってからの最高値 - 4×ATR
 VOL_TARGET = 0.6      # 年率の値動き60%を目安に買う量を調整（荒い時は少なめ）
 COOLDOWN_BARS = 0
+# 実行が遅れて買いサインの足を見逃したとき、今の値段がその時の終値＋ATR×この値以内なら後から買う
+LATE_ENTRY_MAX_ATR = 1.0
 
 # 1ペアあたりの配分（資産 ÷ ペア数 × この値）
 ALLOC_PER_PAIR = 1.0 / len(PAIRS)

@@ -1,7 +1,7 @@
 """過去データで検証する（実際のお金は使わない）。
 
   python -m bot.backtest 2025 2026
-bitbankの1時間足を日ごとに取得し、本番と同じ engine.step で1本ずつ再生する。
+bitbankの4時間足を年ごとに取得し、本番と同じ engine.step で1本ずつ再生する。
 結果は data/backtest.json に保存（画面でも表示できる）。
 """
 import json
@@ -31,7 +31,7 @@ def fetch_bars(pair, start, end):
 
 
 def run(data, start_jpy=C.PAPER_START_JPY):
-    """data[pair] = 1時間足リスト。全ペア共通の時刻で1本ずつ進める。"""
+    """data[pair] = 4時間足リスト。全ペア共通の時刻で1本ずつ進める。"""
     C.MAX_EQUITY_POINTS = C.MAX_TRADES_KEPT = 10**7  # 検証では全履歴を残す
     state, broker = new_state(start_jpy, "paper"), PaperBroker()
     idx = {p: {b[5]: i for i, b in enumerate(bs)} for p, bs in data.items()}

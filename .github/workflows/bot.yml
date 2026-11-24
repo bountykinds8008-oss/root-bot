@@ -2,7 +2,8 @@ name: root_bot 定期実行
 
 on:
   schedule:
-    - cron: "7 * * * *"   # 予備：1時間ごと（GitHubの定期実行は遅れ・間引きが多いので、主な起動はClaudeの予定タスクから）
+    - cron: "11,41 * * * *"   # 30分ごと（GitHub側で間引かれても、engine が飛ばした足を後追い処理する）
+                              # 1回約1分 × 最大1440回/月 ＝ 無料枠2000分/月の内側
   workflow_dispatch: {}
   push:
     branches: [main]
@@ -24,6 +25,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: 動作テスト（失敗したら売買しない）
+        run: python -m unittest discover -s tests -t . -q
       - name: 1回分の売買判断
         env:
           LIVE_TRADING: ${{ vars.LIVE_TRADING }}
