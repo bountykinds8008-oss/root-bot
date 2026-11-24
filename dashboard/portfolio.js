@@ -3,6 +3,8 @@ const main = document.querySelector('main');
 const yen = n => Math.round(n).toLocaleString('ja-JP') + ' 円';
 const stamp = t => new Date(t).toLocaleString('ja-JP');
 $('address').value = localStorage.getItem('rb_eth_address') || '';
+let chain = localStorage.getItem('rb_chain') === 'eth' ? 'eth' : 'bsc';
+$('chain').value = chain;
 const pass = localStorage.getItem('rb_pass') || '';
 let cache = {}, busy = false;
 function line(parent, title, detail) {
@@ -24,7 +26,7 @@ function render(data) {
   }
   const price = symbol => symbol === 'JPY' ? 1 : cache.quotes?.rates[symbol];
   $('accounts').replaceChildren();
-  for (const [key, name] of [['bank','bitbank'],['eth','MetaMask · ETH']]) {
+  for (const [key, name] of [['bank','bitbank'],['eth',chain === 'bsc' ? 'MetaMask · BNB' : 'MetaMask · ETH']]) {
     const snapshot = cache[key];
     if (!snapshot) { partial = true; line($('accounts'), name, data[key].state); continue; }
     let sum = 0, missing = false, hasValue = snapshot.rows.length === 0;
@@ -54,24 +56,32 @@ function render(data) {
 }
 async function refresh() {
   if (busy) return;
+  $('chain').disabled = true; $('status').textContent = '残高と価格を更新中…';
   busy = true; $('wallet').querySelector('button').disabled = true; $('refresh').disabled = true;
   try {
-    const response = await fetch('/api/portfolio?'+new URLSearchParams({address:localStorage.getItem('rb_eth_address') || ''}),{headers:{'x-dash-pass':pass}, cache:'no-store'});
+    const response = await fetch('/api/portfolio?'+new URLSearchParams({chain,address:localStorage.getItem('rb_eth_address') || ''}),{headers:{'x-dash-pass':pass}, cache:'no-store'});
     if (!response.ok) throw Error();
     const data = await response.json();
     render(data);
-    $('status').textContent = '表示中は60秒ごとに更新';
+    const outcome = data.eth.rows ? '残高取得 ' + stamp(data.eth.time) : 'ウォレット：' + data.eth.state;
+    $('status').textContent = outcome + '（60秒ごとに更新）';
   } catch { $('status').textContent = '通信できません。表示中の金額は前回取得時の値です。'; }
-  finally { $('wallet').querySelector('button').disabled = false; busy = false; $('refresh').disabled = false; }
+  finally { $('chain').disabled = false; $('wallet').querySelector('button').disabled = false; busy = false; $('refresh').disabled = false; }
 }
 $('wallet').onsubmit = e => {
   e.preventDefault();
   if (busy) return;
+  const previousAddress = localStorage.getItem('rb_eth_address');
   localStorage.setItem('rb_eth_address', $('address').value.trim());
-  delete cache.eth;
+  if ($('address').value.trim() !== previousAddress) delete cache.eth;
   main.hidden = true;
   refresh();
 };
-$('refresh').onclick = refresh;
+$('chain').onchange = () => {
+  chain = $('chain').value;
+  localStorage.setItem('rb_chain', chain);
+  cache = {}; main.hidden = true; refresh();
+};
+$('refresh').onclick = () => $('wallet').requestSubmit();
 setInterval(()=>{ if (!document.hidden) refresh(); },60000);
 refresh();
