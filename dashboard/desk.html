@@ -24,7 +24,7 @@
   .up{color:var(--up)} .down{color:var(--down)} .gold{color:var(--gold)}
   #desk{position:fixed;inset:0;padding:max(8px,env(safe-area-inset-top)) 8px 8px;display:grid;gap:7px;
     grid-template-columns:1.35fr 1.65fr 1fr;grid-template-rows:auto auto 1.9fr 1fr;
-    grid-template-areas:"bar bar bar" "tiles tiles tiles" "candle room feed" "equity equity month"}
+    grid-template-areas:"bar bar bar" "tiles tiles tiles" "candle room feed" "equity verify month"}
   .pane{position:relative;background:linear-gradient(180deg,rgba(255,95,199,.05),rgba(139,92,255,.03)),var(--pane);
     border:1px solid rgba(255,95,199,.45);border-radius:6px;overflow:hidden;
     box-shadow:0 0 0 1px rgba(139,92,255,.15) inset,0 0 18px rgba(255,95,199,.12)}
@@ -67,14 +67,14 @@
   /* テレビ表示（C） */
   body.tv{cursor:none}
   body.tv #desk{grid-template-columns:1.25fr 1fr;grid-template-rows:auto auto 1fr;grid-template-areas:"bar bar" "tiles tiles" "room candle"}
-  body.tv .feed,body.tv .equity,body.tv .month{display:none}
+  body.tv .feed,body.tv .equity,body.tv .month,body.tv .verify{display:none}
   body.tv .tile .v{font-size:min(3.4vw,46px)} body.tv .tile .k{font-size:min(1.2vw,15px)} body.tv .tile .s{font-size:min(1.3vw,16px)}
   body.tv .tile{padding:min(1vw,14px) min(1.2vw,16px)} body.tv .logo{font-size:min(1.6vw,22px)} body.tv .clock{font-size:min(1.5vw,20px)}
   body.tv .pane>h3{font-size:min(1.1vw,14px)}
   body.tv .banner{transform:translate(-50%,-50%) scale(1.6)} body.tv .banner:not(.show){transform:translate(-50%,-50%) scale(1.3)}
   .tfb{font:inherit;font-size:10px;background:none;border:1px solid rgba(139,92,255,.35);color:var(--mute);border-radius:4px;padding:1px 6px;margin-left:4px;cursor:pointer}
   .tfb.on{color:#fff;border-color:var(--edge);background:rgba(255,95,199,.15)}
-  .candle{grid-area:candle} .room{grid-area:room} .feed{grid-area:feed} .equity{grid-area:equity} .strip{grid-area:strip} .month{grid-area:month}
+  .candle{grid-area:candle} .room{grid-area:room} .feed{grid-area:feed} .equity{grid-area:equity} .strip{grid-area:strip} .month{grid-area:month} .verify{grid-area:verify}
   /* 実況 */
   .list{position:absolute;inset:26px 8px 6px;overflow:hidden;mask-image:linear-gradient(#000 80%,transparent)}
   .row{display:grid;grid-template-columns:34px 1fr auto;gap:6px;padding:5px 0;border-bottom:1px dashed rgba(154,143,176,.18);animation:in .5s}
@@ -109,10 +109,12 @@
     .tiles>.tile:nth-child(6){order:3} .tiles>.tile:nth-child(3),.tiles>.tile:nth-child(4),.tiles>.tile:nth-child(5){order:4}
     #desk{position:static;padding:max(8px,env(safe-area-inset-top)) 7px 10px;gap:6px;
       grid-template-columns:1fr;
-      grid-template-rows:auto auto calc(41dvh) calc(37dvh) 300px 200px 360px;
-      grid-template-areas:"bar" "tiles" "room" "candle" "feed" "equity" "month"}
+      grid-template-rows:auto auto calc(41dvh) calc(37dvh) 300px 200px 290px 360px;
+      grid-template-areas:"bar" "tiles" "room" "candle" "feed" "equity" "verify" "month"}
+    .hb .t2{display:none}
     .bar .logo{font-size:12px;letter-spacing:.16em} .bar .logo small{display:none} .bar .rec{margin-left:6px}
-    .bar .tb{padding:2px 7px;font-size:10px} .bar #bTv{display:none} .clock{font-size:10px}
+    .bar .tb{padding:3px 7px;font-size:10px;white-space:nowrap} .bar #bTv{display:none} .clock{display:none}
+    .bar>div:last-child{gap:5px!important} .hb{padding:2px 7px}
     .tiles{grid-template-columns:repeat(3,1fr);gap:5px}
     .tile{padding:5px 7px} .tile .k{font-size:8px;letter-spacing:.08em} .tile .k span{display:none}
     .tile .v{font-size:clamp(12px,3.9vw,17px);margin-top:1px} .tile .s{font-size:9px}
@@ -121,6 +123,38 @@
     .fill{inset:21px 4px 4px}
     .banner div{font-size:20px}
   }
+  /* v3：ボットの心拍 */
+  .hb{display:inline-flex;align-items:center;gap:6px;font-size:10px;color:var(--mute);border:1px solid rgba(139,92,255,.35);
+    border-radius:99px;padding:2px 9px;cursor:pointer;background:rgba(139,92,255,.06);white-space:nowrap}
+  .hb i{width:7px;height:7px;border-radius:50%;background:var(--mute)}
+  .hb.ok i{background:var(--up);box-shadow:0 0 0 0 rgba(63,242,181,.7);animation:beat 1.6s infinite}
+  .hb.warn i{background:var(--gold);animation:beat 1.6s infinite} .hb.bad i{background:var(--down);animation:bl 1s infinite}
+  .hb b{color:var(--text);font-weight:600}
+  @keyframes beat{0%{box-shadow:0 0 0 0 rgba(63,242,181,.6)}70%{box-shadow:0 0 0 7px rgba(63,242,181,0)}100%{box-shadow:0 0 0 0 rgba(63,242,181,0)}}
+  /* v3：作戦の検証 */
+  .vf{position:absolute;inset:24px 8px 8px;display:flex;flex-direction:column;gap:6px}
+  .vf .kpi{margin:0;grid-template-columns:repeat(4,1fr)} .vf .kpi b{font-size:13px}
+  .vf .cv{flex:1;min-height:60px;position:relative} .vf .cv canvas{position:absolute;inset:0}
+  .mstrip{display:flex;gap:2px;align-items:flex-end;height:34px;border-top:1px dashed rgba(154,143,176,.2);padding-top:3px}
+  .mstrip i{flex:1;border-radius:1px;min-height:2px;position:relative}
+  .mstrip i.hit::after{content:"★";position:absolute;top:-12px;left:50%;transform:translateX(-50%);font-size:8px;color:var(--gold);font-style:normal}
+  .vf .note{font-size:9px;color:var(--mute);display:flex;justify-content:space-between}
+  .tag.late{outline:1px dashed var(--gold);outline-offset:1px}
+  .lt{color:var(--gold);font-size:9px;border:1px solid rgba(255,198,92,.5);border-radius:3px;padding:0 3px;margin-left:3px}
+  /* v3：お知らせ */
+  .news{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;background:rgba(5,3,10,.72);backdrop-filter:blur(4px)}
+  .news.show{display:flex}
+  .news .card{width:min(360px,90vw);background:var(--pane);border:1px solid var(--edge);border-radius:14px;padding:18px 18px 14px;
+    box-shadow:0 0 40px rgba(255,95,199,.35);font:13px/1.6 -apple-system,"Hiragino Sans",sans-serif;animation:in .5s}
+  .news h2{font-size:15px;letter-spacing:.08em;color:#fff;text-shadow:0 0 10px var(--edge);margin-bottom:2px}
+  .news .ver{font:10px ui-monospace,monospace;color:var(--edge);letter-spacing:.2em}
+  .news ul{list-style:none;margin:12px 0 14px} .news li{padding:7px 0 7px 26px;position:relative;border-bottom:1px dashed rgba(154,143,176,.2)}
+  .news li span{position:absolute;left:0;top:6px;font-size:15px} .news li b{color:#fff}
+  .news li small{display:block;color:var(--mute);font-size:11px}
+  .news button{width:100%;padding:11px;border-radius:9px;border:none;background:var(--edge);color:#1a0716;font:inherit;font-weight:800}
+  .hbpop{position:fixed;z-index:75;left:50%;top:54px;transform:translateX(-50%);width:min(330px,92vw);display:none;background:rgba(18,12,29,.97);
+    border:1px solid var(--edge2);border-radius:10px;padding:10px 12px;font:12px/1.6 -apple-system,"Hiragino Sans",sans-serif;box-shadow:0 0 24px rgba(139,92,255,.35)}
+  .hbpop.show{display:block} .hbpop b{color:#fff}
   .a2hs{position:fixed;left:10px;right:10px;bottom:max(12px,env(safe-area-inset-bottom));z-index:70;display:none;
     background:rgba(18,12,29,.96);border:1px solid var(--edge);border-radius:14px;padding:12px 14px;box-shadow:0 0 30px rgba(255,95,199,.35);
     font:13px/1.5 -apple-system,"Hiragino Sans",sans-serif;animation:in .5s}
@@ -132,7 +166,7 @@
 </head>
 <body>
 <div id="desk">
-  <div class="bar"><div class="logo">ROOT BOT DESK<small id="mode">PAPER</small><span class="rec"><i></i>LIVE</span></div><div style="display:flex;align-items:center;gap:8px"><a class="tb" href="/portfolio">資産一覧</a><button class="tb" id="bSnd" title="売買の音">🔇 音</button><button class="tb" id="bTv" title="テレビ表示">📺 TV</button><div class="clock num" id="clock"></div></div></div>
+  <div class="bar"><div class="logo">ROOT BOT DESK<small id="mode">PAPER</small><span class="rec"><i></i>LIVE</span></div><div style="display:flex;align-items:center;gap:8px"><span class="hb" id="hb"><i></i><span id="hbT">確認中</span></span><a class="tb" href="/portfolio">資産一覧</a><button class="tb" id="bSnd" title="売買の音">🔇 音</button><button class="tb" id="bTv" title="テレビ表示">📺 TV</button><div class="clock num" id="clock"></div></div></div>
   <div class="tiles">
     <div class="pane tile"><div class="k">総資産<span>EQUITY</span></div><div class="v num" id="tEq">—</div><div class="s num" id="tEqS">—</div></div>
     <div class="pane tile"><div class="k">今月<span>MONTH</span></div><div class="v num" id="tM">—</div><div class="bar2"><i id="tMb"></i></div></div>
@@ -145,8 +179,20 @@
   <div class="pane room"><h3>BOT ROOM<span id="roomSub">ビット・イーサ・リプル</span></h3><div class="fill" style="inset:22px 0 0"><canvas id="cvR"></canvas></div></div>
   <div class="pane feed"><h3>実況<span>LOG</span></h3><div class="list"><div class="sec">保有中</div><div id="pos"></div><div class="sec">売買</div><div id="log"></div></div></div>
   <div class="pane equity"><h3>資産の推移<span id="eqSpan">EQUITY</span></h3><div class="fill"><canvas id="cvE"></canvas></div></div>
+  <div class="pane verify"><h3>作戦の検証<span id="vfP">過去データ</span></h3><div class="vf">
+    <div class="kpi" id="vfK"></div>
+    <div class="cv"><canvas id="cvV"></canvas></div>
+    <div class="mstrip" id="vfM"></div>
+    <div class="note"><span id="vfN">—</span><span>★＝月+5%達成</span></div></div></div>
   <div class="pane month"><h3>成績<span>目標 +5%</span></h3><div class="list" style="mask-image:none"><div class="kpi" id="kpi"></div><div class="fun" id="fun"></div><div id="mon"></div></div></div>
 </div>
+<div class="hbpop" id="hbp"></div>
+<div class="news" id="news"><div class="card"><div class="ver">ROOT BOT v3</div><h2>新しくなりました</h2><ul>
+  <li><span>⏩</span><b>見逃さない</b><small>実行が遅れても、飛ばした4時間足をさかのぼって全部判断します（取引に「後追い」と表示）</small></li>
+  <li><span>🛡️</span><b>損切りを取引所に置く</b><small>本番では取引所が損切りを見張るので、ボットが止まっても守れます</small></li>
+  <li><span>💓</span><b>ボットの心拍</b><small>右上の丸で、ボットが最後に動いた時刻と次の判断までの時間がわかります</small></li>
+  <li><span>🧪</span><b>作戦の検証を新しく</b><small>今の作戦で過去データを検証し直した成績を「作戦の検証」に表示</small></li>
+</ul><button id="newsX">OK</button></div></div>
 <div class="banner" id="ban"><b id="banK"></b><div class="num" id="banV"></div><small id="banS"></small></div>
 <div class="demo" id="demo" hidden>サンプル映像（実データではありません）</div>
 <div class="login" id="login"><form id="lf"><div class="logo">ROOT BOT DESK</div><input id="pw" type="password" placeholder="合言葉"><button>開く</button></form></div>
@@ -218,13 +264,13 @@ function applyStatus(d){
   $("pos").innerHTML=d.positions.length?d.positions.map(x=>{const px=S.tick[x.pair]?S.tick[x.pair].last:x.price,r=px?px/x.entry-1:0;
     return`<div class="pos"><span style="color:${COIN[x.pair]}">${SYM[x.pair]}</span><span class="num">${fmt(x.entry,x.pair)}</span><span class="num ${cls(r)}">${pct(r)}</span></div>`}).join(""):`<div class="pos"><span style="color:var(--mute)">なし（チャンス待ち）</span></div>`;
   const fresh=d.trades.filter(x=>x.ts>S.seen).sort((a,b)=>a.ts-b.ts);
-  $("log").innerHTML=[...d.trades].reverse().slice(0,14).map(x=>`<div class="row"><span class="tag ${x.side}">${x.side==="buy"?"BUY":"SELL"}</span>
-    <div><span style="color:${COIN[x.pair]}">${SYM[x.pair]}</span> ${fmt(x.price,x.pair)}<small>${hm(x.ts)}・${x.reason}</small></div>
-    <div class="r num ${cls(x.pnl)}">${x.pnl!=null?(x.pnl>=0?"+":"")+yen(x.pnl):""}</div></div>`).join("");
+  $("log").innerHTML=[...d.trades].reverse().slice(0,14).map(x=>{const late=/後追い/.test(x.reason||"");return`<div class="row"><span class="tag ${x.side}${late?" late":""}">${x.side==="buy"?"BUY":"SELL"}</span>
+    <div><span style="color:${COIN[x.pair]}">${SYM[x.pair]}</span> ${fmt(x.price,x.pair)}${late?'<span class="lt">後追い</span>':""}<small>${hm(x.ts)}・${(x.reason||"").replace(/（.*後追い.*）/,"")}</small></div>
+    <div class="r num ${cls(x.pnl)}">${x.pnl!=null?(x.pnl>=0?"+":"")+yen(x.pnl):""}</div></div>`}).join("");
   if(!first)fresh.forEach(react);
   S.seen=Math.max(S.seen,0,...d.trades.map(x=>x.ts));
   if(first)S.eqShown=d.equity;
-  checkLevelUp();
+  checkLevelUp(); heartbeat();
   // ボットの基本状態
   for(const p of PAIRS){const mo=S.mood[p]; if(performance.now()<mo.until)continue;
     mo.state=d.halted?"sleep":d.positions.some(x=>x.pair===p)?"hold":"watch";}
@@ -282,7 +328,7 @@ function react(x){
   sfx(x.side==="buy"?"buy":(x.pnl||0)>=0?"win":"lose");
   if(x.side==="buy"){mo.state="buy";mo.until=now+3500;}
   else{mo.state=(x.pnl||0)>=0?"win":"lose";mo.until=now+6000; if((x.pnl||0)>=0)burst(x.pair);}
-  $("banK").textContent=x.side==="buy"?"▲ BUY":"▼ SELL"; $("banK").className=x.side==="buy"?"up":"down";
+  $("banK").textContent=(x.side==="buy"?"▲ BUY":"▼ SELL")+(/後追い/.test(x.reason||"")?"  ⏩":""); $("banK").className=x.side==="buy"?"up":"down";
   $("banV").innerHTML=`<span style="color:${COIN[x.pair]}">${SYM[x.pair]}</span> ${fmt(x.price,x.pair)}`;
   $("banS").innerHTML=x.reason+(x.pnl!=null?`　<span class="${cls(x.pnl)}">${x.pnl>=0?"+":""}${yen(x.pnl)}</span>`:"");
   $("ban").classList.add("show"); clearTimeout(banT); banT=setTimeout(()=>$("ban").classList.remove("show"),3800);
@@ -610,6 +656,63 @@ function drawStrip(){
     x.strokeStyle=COIN[p]; x.lineWidth=1.3; x.stroke();
     x.fillStyle=ch>=0?"#3ff2b5":"#ff5577"; x.textAlign="right"; x.fillText(pct(ch),W-2,y0+rh/2+3); x.textAlign="left";});
 }
+
+/* ================= v3：ボットの心拍・次の判断・作戦の検証 ================= */
+const BAR4=4*36e5;
+function ago(ms){const m=Math.max(0,Math.round(ms/6e4));return m<60?m+"分前":Math.floor(m/60)+"時間"+(m%60?m%60+"分":"")+"前";}
+function cd(ms){ms=Math.max(0,ms);const h=Math.floor(ms/36e5),m=Math.floor(ms%36e5/6e4),s=Math.floor(ms%6e4/1e3);return`${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;}
+function heartbeat(){
+  const d=S.status,el=$("hb"); if(!d||!d.updated_at){el.className="hb";$("hbT").textContent="確認中";return;}
+  const age=Date.now()-d.updated_at, next=Math.ceil(Date.now()/BAR4)*BAR4-Date.now();
+  el.className="hb "+(d.halted?"warn":age<8*36e5?"ok":age<14*36e5?"warn":"bad");
+  $("hbT").innerHTML=`<b>${ago(age)}</b><span class="t2">・次の足 ${cd(next)}</span>`;
+  const st=$("tSt2"); if(!d.halted&&!d.defensive)st.textContent=`保有 ${d.positions.length}/3・次 ${cd(next).slice(0,-3)}`;
+}
+$("hb").onclick=e=>{e.stopPropagation();const d=S.status,p=$("hbp");if(p.classList.toggle("show")&&d){
+  const age=Date.now()-d.updated_at;
+  p.innerHTML=`<b>ボットの心拍</b><br>最後に動いた時刻：<b>${new Date(d.updated_at).toLocaleString("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</b>（${ago(age)}）<br>
+  次の4時間足の確定まで：<b>${cd(Math.ceil(Date.now()/BAR4)*BAR4-Date.now())}</b><br>
+  後追いで処理した足：<b>${(d.catchup_bars||0).toLocaleString()}本</b>（通算）<br>
+  <span style="color:var(--mute);font-size:11px">GitHubの定期実行は遅れることがあります。遅れても飛ばした足をさかのぼって判断するので、8時間以内なら心配いりません。${age>=14*36e5?'<br><span class="down">⚠ 長く動いていません。GitHubのActions画面を確認してください。</span>':""}</span>`;}};
+document.addEventListener("click",e=>{if(!e.target.closest("#hbp"))$("hbp").classList.remove("show");});
+setInterval(heartbeat,1000);
+
+const CV=canvas("cvV"); S.bt=null;
+async function loadBacktest(){
+  if(DEMO)return;
+  try{const r=await fetch("/data/backtest.json",{cache:"no-store"});if(r.ok){S.bt=await r.json();renderBacktest();}}catch(e){}
+}
+function renderBacktest(){
+  const b=S.bt; if(!b||b.end==null)return;
+  const cell=(k,v,c="")=>`<div><small>${k}</small><b class="num ${c}">${v}</b></div>`;
+  $("vfK").innerHTML=cell("通算",pct(b.total_return,1),cls(b.total_return))+cell("最大の落込",pct(b.max_drawdown,1),"down")+
+    cell("勝率",b.win_rate!=null?Math.round(b.win_rate*100)+"%":"—")+cell("+5%の月",`${b.months_hit_target}/${b.months.length}`,"gold");
+  const per=(b.period||"").replace(/-/g,"/").replace(/\/0?(\d+)\/0?(\d+)/g,"/$1/$2");
+  $("vfP").textContent=per||"過去データ";
+  const mx=Math.max(.05,...b.months.map(m=>Math.abs(m.return)));
+  $("vfM").innerHTML=b.months.map(m=>{const r=m.return,h=Math.max(2,Math.abs(r)/mx*30);
+    return`<i class="${r>=0.05?"hit":""}" title="${m.month} ${pct(r,1)}" style="height:${h}px;background:${r>0?"var(--up)":r<0?"var(--down)":"#4a3f66"};opacity:${r===0?.5:1}"></i>`}).join("");
+  $("vfN").textContent=`取引${b.trades}回・プラス月${b.months.filter(m=>m.return>0).length}／マイナス月${b.months_negative}`;
+  drawBacktest();
+}
+function drawBacktest(){
+  const b=S.bt; if(!b||!b.equity_history||b.equity_history.length<2)return;
+  const[W,H]=CV.fit(),x=CV.x; x.clearRect(0,0,W,H);
+  const v=b.equity_history.map(r=>r[1]), st=b.start, lo=Math.min(st,...v), hi=Math.max(st,...v);
+  const X=i=>i/(v.length-1)*W, Y=q=>3+(1-(q-lo)/(hi-lo||1))*(H-6);
+  x.setLineDash([3,4]); x.strokeStyle="rgba(154,143,176,.45)"; x.beginPath(); x.moveTo(0,Y(st)); x.lineTo(W,Y(st)); x.stroke(); x.setLineDash([]);
+  x.font="9px ui-monospace,'Hiragino Sans',sans-serif"; x.fillStyle="#6d6385"; x.fillText("元手 "+yen(st),3,Y(st)-3);
+  const g=x.createLinearGradient(0,0,0,H); g.addColorStop(0,"rgba(63,242,181,.30)"); g.addColorStop(1,"rgba(63,242,181,0)");
+  x.beginPath(); v.forEach((q,i)=>i?x.lineTo(X(i),Y(q)):x.moveTo(0,Y(q))); x.lineTo(W,H); x.lineTo(0,H); x.fillStyle=g; x.fill();
+  x.beginPath(); v.forEach((q,i)=>i?x.lineTo(X(i),Y(q)):x.moveTo(0,Y(q))); x.strokeStyle="#3ff2b5"; x.lineWidth=1.5; x.shadowColor="#3ff2b5"; x.shadowBlur=6; x.stroke(); x.shadowBlur=0;
+  x.fillStyle="#3ff2b5"; x.textAlign="right"; x.font="bold 10px ui-monospace,monospace"; x.fillText(yen(v[v.length-1]),W-3,Math.max(11,Y(v[v.length-1])-4)); x.textAlign="left";
+}
+addEventListener("resize",()=>drawBacktest());
+loadBacktest(); setInterval(loadBacktest,30*60000);
+
+(()=>{ if(store.get("rb_news")==="v3"||new URLSearchParams(location.search).has("tv"))return;
+  setTimeout(()=>$("news").classList.add("show"),900);
+  $("newsX").onclick=()=>{$("news").classList.remove("show");store.set("rb_news","v3");};})();
 
 /* ================= ループ ================= */
 let last=performance.now();
