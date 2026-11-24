@@ -174,6 +174,15 @@
   </div>
 </div>
 
+<div id="jsErr" hidden style="position:fixed;left:10px;right:10px;bottom:10px;z-index:90;background:#2a0f18;border:1px solid #ff5577;border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.6"></div>
+<script>
+/* 画面のプログラムでエラーが起きたら、真っ白にせず内容を表示する（Claudeに伝えれば直せる） */
+addEventListener("error",e=>{const b=document.getElementById("jsErr");b.hidden=false;b.textContent="表示のエラー："+(e.message||"不明")+"（この文をClaudeに送ってください）";});
+addEventListener("unhandledrejection",e=>{const b=document.getElementById("jsErr");b.hidden=false;b.textContent="表示のエラー："+String(e.reason&&e.reason.message||e.reason)+"（この文をClaudeに送ってください）";});
+</script>
+<script>/* オフライン用の仕組み（Service Worker）は、更新のたびに画面が真っ白になる原因になったので廃止。残っていれば外す */
+if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});}
+if(window.caches){caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))).catch(()=>{});}</script>
 <script type="module" src="/portfolio.js"></script>
 </body>
 </html>

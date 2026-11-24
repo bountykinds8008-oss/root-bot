@@ -900,6 +900,8 @@ requestAnimationFrame(frame);
   $("a2hsX").onclick=()=>{$("a2hs").classList.remove("show");store.set("rb_a2hs","0");};
   if(standalone)document.body.classList.add("app");})();
 </script>
-<script>if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"))navigator.serviceWorker.register("/sw.js").catch(()=>{});</script>
+<script>/* オフライン用の仕組み（Service Worker）は、更新のたびに画面が真っ白になる原因になったので廃止。残っていれば外す */
+if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});}
+if(window.caches){caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))).catch(()=>{});}</script>
 </body>
 </html>
