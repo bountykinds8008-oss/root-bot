@@ -265,7 +265,12 @@ PAIRS.forEach(p=>{S.mood[p]={state:"watch",until:0};S.hist[p]=[];});
 S.h1={};
 
 // TV表示のときは描画全体を拡大（文字・線を遠くから見やすく）
-function canvas(id){const c=$(id),x=c.getContext("2d");const o={c,x,k:1,fit(){const r=c.getBoundingClientRect(),d=Math.min(4,devicePixelRatio||1);
+/* iPhone（Safari）は、ぼかし（光る効果）を毎秒何十回も描くと固まる。iPhoneでは
+   ①ぼかしを使わない ②解像度は2倍まで ③1秒30回 ④見えている所だけ描く、にして軽くする */
+const IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+function canvas(id){const c=$(id),x=c.getContext("2d");
+  if(IOS)Object.defineProperty(x,"shadowBlur",{get(){return 0},set(){}});
+  const o={c,x,k:1,fit(){const r=c.getBoundingClientRect(),d=Math.min(IOS?2:4,devicePixelRatio||1);
   const z=document.body.classList.contains("tv")?Math.max(1,Math.min(1.8,innerWidth/1100)):1;
   if(c.width!==Math.round(r.width*d)||c.height!==Math.round(r.height*d)){c.width=Math.round(r.width*d);c.height=Math.round(r.height*d);}
   x.setTransform(d*z,0,0,d*z,0,0);o.k=d*z;x.lineJoin="round";x.lineCap="round";x.imageSmoothingQuality="high";return[r.width/z,r.height/z];}};return o;}
@@ -903,15 +908,21 @@ $("bShare").onclick=()=>{
 
 /* ================= ループ ================= */
 let last=performance.now();
+const VIS={room:true,candle:true,equity:true};
+if("IntersectionObserver" in window){const io=new IntersectionObserver(es=>es.forEach(e=>VIS[e.target.dataset.v]=e.isIntersecting));
+  [["room",".room"],["candle",".candle"],["equity",".equity"]].forEach(([k,q])=>{const el=document.querySelector(q);if(el){el.dataset.v=k;io.observe(el);}});}
+const setText=(id,t)=>{const el=$(id);if(el.textContent!==t)el.textContent=t;};   // 変わったときだけ書き換える
 function frame(now){
+  requestAnimationFrame(frame);
+  if(IOS&&now-last<31)return;                                   // iPhoneは1秒30回
+  if(document.querySelector(".shx.show,.news.show"))return;     // 共有・お知らせを開いている間は止める
   const dt=Math.min(.1,(now-last)/1000); last=now;
-  for(const p of PAIRS){ if(!S.tick[p])continue; S.shown[p]+=(S.tick[p].last-S.shown[p])*Math.min(1,dt*4); $("v_"+p).textContent=fmt(S.shown[p],p);}
-  if(S.status){S.eqShown+=(S.status.equity-S.eqShown)*Math.min(1,dt*2.5); $("tEq").textContent=yen(S.eqShown);}
+  for(const p of PAIRS){ if(!S.tick[p])continue; S.shown[p]+=(S.tick[p].last-S.shown[p])*Math.min(1,dt*4); setText("v_"+p,fmt(S.shown[p],p));}
+  if(S.status){S.eqShown+=(S.status.equity-S.eqShown)*Math.min(1,dt*2.5); setText("tEq",yen(S.eqShown));}
   if(now-S.focusAt>15000){S.focus=(S.focus+1)%NP;S.focusAt=now;loadMarket(true);}
   for(const p of PAIRS){const mo=S.mood[p]; if(now>mo.until&&["buy","win","lose"].includes(mo.state)&&S.status)
     mo.state=S.status.halted?"sleep":S.status.positions.some(q=>q.pair===p)?"hold":"watch";}
-  drawRoom(now,dt); drawCandles(); drawEquity();
-  requestAnimationFrame(frame);
+  if(VIS.room)drawRoom(now,dt); if(VIS.candle)drawCandles(); if(VIS.equity)drawEquity();
 }
 setInterval(()=>$("clock").textContent=new Date().toLocaleString("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",weekday:"short",hour:"2-digit",minute:"2-digit",second:"2-digit"}),1000);
 

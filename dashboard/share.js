@@ -32,6 +32,7 @@
 
   // ---- 画像づくり（共通の部品） ----
   const W = 1080, H = 1350;
+  const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   function base(x, title, sub) {
     const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "#160d26"); g.addColorStop(1, "#07040d");
     x.fillStyle = g; x.fillRect(0, 0, W, H);
@@ -60,6 +61,7 @@
   async function build() {
     const c = document.createElement("canvas"); c.width = W; c.height = H;
     const x = c.getContext("2d");
+    if (IOS) Object.defineProperty(x, "shadowBlur", { get() { return 0; }, set() {} });   // iPhoneは光る効果なし（固まり防止）
     cur.draw(x, { W, H, base, rr, line, opt: $(".opt input").checked });
     const blob = await new Promise(r => c.toBlob(r, "image/png"));
     file = new File([blob], cur.fileName || "rootbot.png", { type: "image/png" });
@@ -71,8 +73,10 @@
       cur = o; url = o.url || location.origin + location.pathname;
       $(".opt").hidden = !o.option; if (o.option) { $(".opt span").textContent = o.option; $(".opt input").checked = !!o.optionDefault; }
       $(".nt").textContent = o.note || ""; $(".msg").textContent = "";
-      box.classList.add("show"); $("img").removeAttribute("src");
-      await build();
+      box.classList.add("show"); $("img").removeAttribute("src"); file = null;
+      say("画像を作っています…");
+      await new Promise(r => setTimeout(r, 30));   // 先に画面を出してから作る
+      await build(); say("");
     },
   };
   $(".opt input").onchange = () => build();
@@ -82,22 +86,29 @@
     try { await navigator.clipboard.writeText(text() + "\n" + url); say("文章とリンクをコピーしました。LINEなどに貼り付けてください"); }
     catch { say("コピーできませんでした"); }
   }
-  box.querySelector("[data-a=share]").onclick = async () => {
-    if (!file) return;
-    const data = { files: [file], text: text() + "\n" + url, title: "ROOT BOT" };
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share(data); say("共有しました"); } catch (e) { if (e.name !== "AbortError") copyLink(); }
-    } else if (navigator.share) {
-      try { await navigator.share({ title: "ROOT BOT", text: text(), url }); } catch (e) { if (e.name !== "AbortError") copyLink(); }
-    } else copyLink();
+  // iPhoneは「タップした直後」にしか共有メニューを開けないので、待ち時間を入れずにすぐ呼ぶ。
+  // 失敗したら、もう一度タップしてもらう（2回目の共有はタップなしでは開けないため）。
+  box.querySelector("[data-a=share]").onclick = () => {
+    if (!file) return say("画像を作っています。少し待ってからもう一度押してください");
+    const withFile = navigator.canShare && navigator.canShare({ files: [file] });
+    if (!navigator.share) return copyLink();
+    const data = withFile ? { files: [file], text: text() + "\n" + url } : { title: "ROOT BOT", text: text(), url };
+    navigator.share(data).then(() => say("共有しました")).catch(e => {
+      if (e.name === "AbortError") return;
+      say("共有メニューを開けませんでした。「リンクだけ共有」か「画像を保存」を試してください");
+    });
   };
-  box.querySelector("[data-a=link]").onclick = async () => {
-    if (navigator.share) { try { await navigator.share({ title: "ROOT BOT", text: text(), url }); return; } catch (e) { if (e.name === "AbortError") return; } }
-    copyLink();
+  box.querySelector("[data-a=link]").onclick = () => {
+    if (!navigator.share) return copyLink();
+    navigator.share({ title: "ROOT BOT", text: text(), url }).catch(e => {
+      if (e.name !== "AbortError") say("共有メニューを開けませんでした。もう一度押すと、文章とリンクをコピーします");
+      box.querySelector("[data-a=link]").onclick = copyLink;
+    });
   };
   box.querySelector("[data-a=save]").onclick = () => {
-    if (!file) return;
+    if (!file) return say("画像を作っています。少し待ってください");
+    if (IOS) return say("上の画像を長押し →「写真に保存」で保存できます");   // iPhoneはダウンロードより長押しが確実
     const a = document.createElement("a"); a.href = $("img").src; a.download = file.name; document.body.append(a); a.click(); a.remove();
-    say("保存しました（iPhoneは画像を長押し→「写真に追加」でも保存できます）");
+    say("保存しました");
   };
 })();
