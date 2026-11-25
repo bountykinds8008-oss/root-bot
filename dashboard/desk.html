@@ -350,17 +350,44 @@ function renderFunnel(d){
 }
 let banT;
 let AC=null, SOUND=store.get("rb_snd")==="1";
-function tone(f,t0,d,type="triangle",vol=.15){const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;
-  g.gain.setValueAtTime(0,AC.currentTime+t0);g.gain.linearRampToValueAtTime(vol,AC.currentTime+t0+.01);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+t0+d);
-  o.connect(g).connect(AC.destination);o.start(AC.currentTime+t0);o.stop(AC.currentTime+t0+d+.05);}
-function sfx(kind){ if(!SOUND)return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); AC.resume();
+/* iPhoneの音のルール
+   ① 音は「画面をタップした瞬間」にしか鳴らし始められない → タップのたびに音の仕組みを起こしておく
+   ② 横のマナースイッチがオンだとWebの音は消える → 「音楽と同じ扱い」にして、マナーモードでも鳴るようにする */
+function unlockAudio(){
+  try{ if(navigator.audioSession)navigator.audioSession.type="playback"; }catch(e){}
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state!=="running")AC.resume();
+    const b=AC.createBuffer(1,1,22050),src=AC.createBufferSource();src.buffer=b;src.connect(AC.destination);src.start(0); // 無音を1回
+  }catch(e){}
+  if(!unlockAudio.el){                                  // 古いiPhone向け：無音の<audio>で「音楽と同じ扱い」に切り替える
+    const el=unlockAudio.el=new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=");
+    el.setAttribute("playsinline","");el.volume=0;el.play().catch(()=>{});
+  }
+}
+["pointerdown","touchend","click","keydown"].forEach(ev=>addEventListener(ev,()=>{if(SOUND)unlockAudio();},{passive:true,capture:true}));
+function tone(f,t0,d,type="triangle",vol=.15){const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime+.02+t0;o.type=type;o.frequency.value=f;
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+d);
+  o.connect(g).connect(AC.destination);o.start(t);o.stop(t+d+.05);}
+function play(kind){
   if(kind==="buy"){tone(660,0,.18);tone(990,.12,.3);}
   else if(kind==="win"){[784,988,1175,1568].forEach((f,i)=>tone(f,i*.08,.35,"square",.07));}
   else if(kind==="lose"){tone(330,0,.35,"sine",.18);tone(247,.2,.5,"sine",.15);}
   else if(kind==="lvup"){[523,659,784,1047,1319].forEach((f,i)=>tone(f,i*.1,.4,"square",.07));}
+}
+function sfx(kind){ if(!SOUND)return; try{
+  AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+  if(AC.state==="running")play(kind);
+  else AC.resume().then(()=>{if(AC.state==="running")play(kind);else sndHint();}).catch(sndHint);
  }catch(e){} }
-function setSnd(on){SOUND=on;store.set("rb_snd",on?"1":"0");$("bSnd").textContent=on?"🔊 音":"🔇 音";$("bSnd").classList.toggle("on",on);if(on)sfx("buy");}
-$("bSnd").onclick=()=>setSnd(!SOUND); setSnd(SOUND);
+function toast(msg){let t=$("toast");if(!t){t=document.createElement("div");t.id="toast";
+  t.style.cssText="position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:95;background:rgba(18,12,29,.96);border:1px solid #ff5fc7;border-radius:10px;padding:9px 14px;font:13px -apple-system,'Hiragino Sans',sans-serif;color:#f1e9ff;box-shadow:0 0 18px rgba(255,95,199,.35);max-width:90vw;transition:opacity .4s";
+  document.body.append(t);}t.textContent=msg;t.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.opacity=0,3500);}
+let hinted=0;
+function sndHint(){if(Date.now()-hinted<6e4)return;hinted=Date.now();toast("🔇 音を出すには、画面をどこか1回タップしてください");}
+function setSnd(on,user){SOUND=on;store.set("rb_snd",on?"1":"0");$("bSnd").textContent=on?"🔊 音":"🔇 音";$("bSnd").classList.toggle("on",on);
+  if(on&&user){unlockAudio();sfx("buy");}}
+$("bSnd").onclick=()=>setSnd(!SOUND,true); setSnd(SOUND,false);
 function setTv(on){document.body.classList.toggle("tv",on);$("bTv").classList.toggle("on",on);store.set("rb_tv",on?"1":"0");
   if(on&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
   if(!on&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});}
