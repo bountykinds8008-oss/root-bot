@@ -97,6 +97,28 @@ addEventListener("unhandledrejection",function(e){bar("⚠ エラー："+String(
   .say .tx{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .35s,transform .35s}
   .say .tx.out{opacity:0;transform:translateY(-6px)} .say b{color:#fff}
   .say .dots{display:flex;gap:3px;flex-shrink:0} .say .dots i{width:4px;height:4px;border-radius:50%;background:rgba(154,143,176,.35)} .say .dots i.on{background:var(--edge)}
+  /* ニュースの帯（流れる見出し） */
+  .nbar{grid-column:1/-1;display:flex;align-items:stretch;height:30px;border-radius:8px;overflow:hidden;
+    border:1px solid rgba(85,214,255,.3);background:rgba(85,214,255,.05);font:12px/30px -apple-system,"Hiragino Sans",sans-serif}
+  .nbar .lab{flex-shrink:0;padding:0 9px;background:linear-gradient(90deg,#55d6ff,#8b5cff);color:#07040d;font:800 10px/30px ui-monospace,monospace;letter-spacing:.14em;cursor:pointer}
+  .nbar .lab i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#ff5577;margin-right:5px;vertical-align:1px;animation:bl 1.2s infinite}
+  .nbar .track{flex:1;overflow:hidden;position:relative;-webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
+  .nbar .run{position:absolute;white-space:nowrap;will-change:transform;animation:nmove var(--dur,80s) linear infinite}
+  .nbar:active .run,.nbar .run:hover{animation-play-state:paused}
+  @keyframes nmove{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .nbar a{color:var(--text);text-decoration:none;margin-right:26px}
+  .nbar a .t{color:var(--mute);font-size:10px;margin-right:5px} .nbar a .new{color:#ff5577;font-weight:800;font-size:10px;margin-right:4px}
+  .nbar a .src{color:#55d6ff;font-size:10px;margin-right:5px}
+  .cc{display:inline-block;font:700 9px/14px ui-monospace,monospace;padding:0 4px;border-radius:3px;margin-left:4px;color:#07040d;vertical-align:1px}
+  .nbar.flash{animation:nflash 1.4s}
+  @keyframes nflash{0%,100%{box-shadow:none}30%{box-shadow:0 0 0 1px #55d6ff,0 0 18px rgba(85,214,255,.6)}}
+  /* ニュースのタブ */
+  .nf{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+  .nf button{font:inherit;font-size:10px;padding:2px 8px;border-radius:99px;border:1px solid rgba(154,143,176,.35);background:none;color:var(--mute);cursor:pointer}
+  .nf button.on{color:#07040d;background:var(--c,#ff5fc7);border-color:var(--c,#ff5fc7);font-weight:700}
+  .ni{display:block;padding:7px 2px;border-bottom:1px dashed rgba(154,143,176,.18);color:var(--text);text-decoration:none;font:12px/1.5 -apple-system,"Hiragino Sans",sans-serif}
+  .ni small{display:block;color:var(--mute);font-size:10px} .ni small .src{color:#55d6ff} .ni .new{color:#ff5577;font-weight:800;font-size:10px;margin-right:4px}
+  .ni:active{background:rgba(85,214,255,.06)}
   /* 下のメニュー（スマホの縦画面） */
   .bnav{display:none}
   @keyframes fu{from{background:rgba(63,242,181,.22)}}@keyframes fd{from{background:rgba(255,85,119,.22)}}
@@ -158,13 +180,13 @@ addEventListener("unhandledrejection",function(e){bar("⚠ エラー："+String(
   @media (max-aspect-ratio: 1/1){
     html,body{overflow:auto;overflow-x:hidden}
     .tiles>.tile:not(.coin){order:1;grid-column:span 2} .tiles>.tile.coin{order:2;grid-column:span 2}
-    .tiles>.tile.coin:nth-child(n+7){grid-column:span 3}
+    #tile_eth_jpy,#tile_bnb_jpy{grid-column:span 3!important}
     #desk{position:static;padding:max(8px,env(safe-area-inset-top)) 7px 10px;gap:6px;
       grid-template-columns:1fr;
       grid-template-rows:auto auto calc(41dvh) calc(37dvh) 300px 200px 290px 360px;
       grid-template-areas:"bar" "tiles" "room" "candle" "feed" "equity" "verify" "month"}
     .hb .t2{display:none}
-    .say{order:0;grid-column:1/-1}
+    .say{order:0;grid-column:1/-1} .nbar{order:0}
     #desk{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
     .bar a.tb,.bar #bShare,.bar #bNt,.bar #bSnd{display:none}
     .a2hs{bottom:calc(78px + env(safe-area-inset-bottom))!important}
@@ -252,6 +274,7 @@ addEventListener("unhandledrejection",function(e){bar("⚠ エラー："+String(
   <div class="bar"><div class="logo">ROOT BOT DESK<small id="mode">PAPER</small><span class="rec"><i></i>LIVE</span></div><div style="display:flex;align-items:center;gap:8px"><span class="hb" id="hb"><i></i><span id="hbT">確認中</span></span><a class="tb" href="/portfolio">資産一覧</a><button class="tb" id="bShare" title="共有">📤</button><button class="tb" id="bNt" title="スマホ通知">🔔</button><button class="tb" id="bSnd" title="売買の音">🔇 音</button><button class="tb" id="bTv" title="テレビ表示">📺 TV</button><div class="clock num" id="clock"></div></div></div>
   <div class="tiles">
     <div class="say" id="say"><span class="ic">🤖</span><span class="tx" id="sayT">準備中…</span><span class="dots" id="sayD"></span></div>
+    <div class="nbar" id="nbar"><span class="lab" id="nLab"><i></i>NEWS</span><div class="track"><div class="run" id="nrun"><a>ニュースを読み込んでいます…</a></div></div></div>
     <div class="pane tile"><div class="k">総資産<span>EQUITY</span></div><div class="v num" id="tEq">—</div><div class="s num" id="tEqS">—</div></div>
     <div class="pane tile"><div class="k">今月<span>MONTH</span></div><div class="v num" id="tM">—</div><div class="bar2"><i id="tMb"></i></div></div>
     <div class="pane tile coin" id="tile_btc_jpy"><div class="k">BTC/JPY<span>ビットコイン</span></div><div class="v num" id="v_btc_jpy">—</div><div class="s num" id="s_btc_jpy">—</div><canvas class="mini" id="m_btc_jpy"></canvas></div>
@@ -270,10 +293,11 @@ addEventListener("unhandledrejection",function(e){bar("⚠ エラー："+String(
     <div class="cv"><canvas id="cvV"></canvas></div>
     <div class="mstrip" id="vfM"></div>
     <div class="note"><span id="vfN">—</span><span>★＝月+5%達成</span></div></div></div>
-  <div class="pane month"><h3><span class="mtabs"><button data-mt="stats" class="on">成績</button><button data-mt="today">今日</button><button data-mt="ready">本番準備</button></span></h3>
+  <div class="pane month"><h3><span class="mtabs"><button data-mt="stats" class="on">成績</button><button data-mt="today">今日</button><button data-mt="ready">本番準備</button><button data-mt="news">ニュース</button></span></h3>
     <div class="list" style="mask-image:none" id="mt_stats"><div class="kpi" id="kpi"></div><div class="fun" id="fun"></div><div id="mon"></div></div>
     <div class="list" style="mask-image:none;overflow:auto" id="mt_today" hidden><div id="today"></div></div>
-    <div class="list" style="mask-image:none;overflow:auto" id="mt_ready" hidden><div id="ready"></div></div></div>
+    <div class="list" style="mask-image:none;overflow:auto" id="mt_ready" hidden><div id="ready"></div></div>
+    <div class="list" style="mask-image:none;overflow:auto" id="mt_news" hidden><div class="nf" id="nf"></div><div id="nlist"></div></div></div>
 </div>
 <nav class="bnav" aria-label="メニュー">
   <a class="on" href="/desk"><span class="i">🤖</span>ボット</a>
@@ -833,7 +857,7 @@ $("hb").onclick=e=>{e.stopPropagation();const d=S.status,p=$("hbp");if(p.classLi
   p.innerHTML=`<b>ボットの心拍</b><br>最後に動いた時刻：<b>${new Date(d.updated_at).toLocaleString("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</b>（${ago(age)}）<br>
   次の4時間足の確定まで：<b>${cd(Math.ceil(Date.now()/BAR4)*BAR4-Date.now())}</b><br>
   後追いで処理した足：<b>${(d.catchup_bars||0).toLocaleString()}本</b>（通算）<br>
-  <span style="color:var(--mute);font-size:10px">画面の版 2026-11-25 16:30</span><br>
+  <span style="color:var(--mute);font-size:10px">画面の版 2026-11-25 16:40</span><br>
   <span style="color:var(--mute);font-size:11px">GitHubの定期実行は遅れることがあります。遅れても飛ばした足をさかのぼって判断するので、8時間以内なら心配いりません。${age>=14*36e5?'<br><span class="down">⚠ 長く動いていません。GitHubのActions画面を確認してください。</span>':""}</span>`;}};
 document.addEventListener("click",e=>{if(!e.target.closest("#hbp"))$("hbp").classList.remove("show");});
 setInterval(heartbeat,1000);
@@ -880,7 +904,7 @@ loadBacktest(); setInterval(loadBacktest,30*60000);
 /* ================= 成績パネルのタブ（成績・今日・本番準備） ================= */
 let MT=store.get("rb_mt")||"stats";
 function setMt(t){MT=t;store.set("rb_mt",t);document.querySelectorAll(".mtabs button").forEach(b=>b.classList.toggle("on",b.dataset.mt===t));
-  ["stats","today","ready"].forEach(k=>$("mt_"+k).hidden=k!==t);renderToday();renderReady();}
+  ["stats","today","ready","news"].forEach(k=>$("mt_"+k).hidden=k!==t);renderToday();renderReady();if(t==="news")renderNews();}
 document.querySelectorAll(".mtabs button").forEach(b=>b.onclick=()=>setMt(b.dataset.mt)); setMt(MT);
 
 function renderToday(){
@@ -1024,6 +1048,38 @@ function sayNext(){
   $("sayD").innerHTML=L.map((_,i)=>`<i class="${i===sayI?"on":""}"></i>`).join("");
 }
 $("say").onclick=sayNext; setInterval(()=>{if(!document.hidden)sayNext();},5000); setTimeout(sayNext,1200);
+
+/* ================= ニュース（2分ごとに最新の見出し） ================= */
+const NEWS={items:[],seen:+(store.get("rb_news_seen")||0),filter:"all"};
+const ago2=ts=>{const m=Math.max(0,Math.round((Date.now()-ts)/6e4));return m<60?m+"分前":m<1440?Math.floor(m/60)+"時間前":Math.floor(m/1440)+"日前";};
+const chips=c=>(c||[]).map(p=>`<span class="cc" style="background:${COIN[p]}">${SYM[p]}</span>`).join("");
+const escH=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function loadNews(){
+  try{const d=await(await fetch("/api/news",{cache:"no-store"})).json(); if(!d.items||!d.items.length)return;
+    const fresh=d.items.filter(n=>n.ts>NEWS.seen&&Date.now()-n.ts<3*36e5);
+    NEWS.items=d.items; renderTicker(); renderNews();
+    if(NEWS.seen&&fresh.length){const n=fresh[0];$("nbar").classList.remove("flash");void $("nbar").offsetWidth;$("nbar").classList.add("flash");
+      toast("📰 "+n.title.slice(0,40)+(n.title.length>40?"…":""));}
+    NEWS.seen=Math.max(NEWS.seen,d.items[0].ts); store.set("rb_news_seen",String(NEWS.seen));
+  }catch(e){}
+}
+function renderTicker(){
+  const it=NEWS.items.slice(0,15); if(!it.length)return;
+  const one=it.map(n=>`<a href="${escH(n.link)}" target="_blank" rel="noopener">${Date.now()-n.ts<36e5?'<span class="new">NEW</span>':""}<span class="src">${escH(n.src)}</span><span class="t">${ago2(n.ts)}</span>${escH(n.title)}${chips(n.coins)}</a>`).join("");
+  const run=$("nrun"); run.innerHTML=one+one;                    // 2つ並べて途切れずに流す
+  run.style.setProperty("--dur",Math.max(40,Math.round(run.scrollWidth/2/45))+"s");   // 1秒に45px
+}
+function renderNews(){
+  if(MT!=="news")return;
+  const f=NEWS.filter, opts=[["all","全部","#ff5fc7"],...PAIRS.map(p=>[p,SYM[p],COIN[p]])];
+  $("nf").innerHTML=opts.map(([k,l,c])=>`<button data-k="${k}" class="${f===k?"on":""}" style="--c:${c}">${l}</button>`).join("");
+  $("nf").querySelectorAll("button").forEach(b=>b.onclick=()=>{NEWS.filter=b.dataset.k;renderNews();});
+  const list=NEWS.items.filter(n=>f==="all"||(n.coins||[]).includes(f));
+  $("nlist").innerHTML=list.length?list.map(n=>`<a class="ni" href="${escH(n.link)}" target="_blank" rel="noopener">${Date.now()-n.ts<36e5?'<span class="new">NEW</span>':""}${escH(n.title)}${chips(n.coins)}<small><span class="src">${escH(n.src)}</span>・${ago2(n.ts)}</small></a>`).join("")
+    :`<div style="color:var(--mute);font-size:11px;padding:8px 0">${NEWS.items.length?"このコインのニュースは、いまはありません":"ニュースを読み込んでいます…"}</div>`;
+}
+$("nLab").onclick=()=>{setMt("news");document.querySelector(".pane.month").scrollIntoView({behavior:"smooth",block:"start"});};
+loadNews(); setInterval(()=>{if(!document.hidden)loadNews();},120000);
 
 /* ================= ループ ================= */
 let last=performance.now();
