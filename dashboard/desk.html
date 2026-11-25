@@ -1009,6 +1009,7 @@ window.RBR&&RBR.step("frame-start");
 <script>/* オフライン用の仕組み（Service Worker）は、更新のたびに画面が真っ白になる原因になったので廃止。残っていれば外す */
 if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});}
 if(window.caches){caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))).catch(()=>{});}</script>
+<div id="rbVer" style="position:fixed;left:6px;bottom:4px;z-index:98;font:10px ui-monospace,monospace;color:#6d6385;pointer-events:none">版 2026-11-25 15:05</div>
 <script src="/share.js"></script>
 </body>
 </html>
