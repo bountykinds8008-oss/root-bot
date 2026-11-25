@@ -1,0 +1,30 @@
+name: 銘柄数と損切り幅の比べ直し
+
+# research4 ブランチへの push でだけ動く。main（本番のボット）には触れない
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [research4]
+    paths: ["bot/research4.py", ".github/workflows/research4.yml", ".github/research4-request"]
+
+permissions:
+  contents: write
+
+jobs:
+  research4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 検証（2021〜今年）
+        run: python -m bot.research4 2021 2026
+      - name: 結果を保存（research4 ブランチに）
+        run: |
+          git config user.name "root-bot"
+          git config user.email "root-bot@users.noreply.github.com"
+          git add data/research4.json
+          git diff --cached --quiet || git commit -m "research4 result" -q
+          for i in 1 2 3 4 5; do git pull --rebase -q origin research4 && git push -q origin HEAD:research4 && break; sleep $((i*5)); done
