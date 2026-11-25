@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import bitbank, config as C, notify
+from . import bitbank, config as C, newsalert, notify
 from .brokers import LiveBroker, PaperBroker
 from .engine import new_state, step
 
@@ -98,6 +98,8 @@ def main():
     state["was_halted"], state["was_defensive"] = summary["halted"], summary["defensive"]
     runs = [r for r in state.get("runs", []) if r > now - 7 * 864e5] + [now]   # 実行の記録（振り返り用・7日分）
     state["runs"] = runs[-400:]
+    if os.environ.get("ROOT_BOT_NOTIFY", "yes") == "yes":
+        newsalert.run(state, now)      # 大事なニュースの通知（既読の印を同じ保存に入れるため、保存の前に）
     save(state, summary, market)
     if os.environ.get("ROOT_BOT_NOTIFY", "yes") == "yes":
         notify.trades([t for t in state["trades"] if t["ts"] > before["last_ts"]], state["mode"], summary["equity"])

@@ -348,7 +348,7 @@ const cls=v=>v>0?"up":v<0?"down":"";
 const hm=ts=>new Date(ts).toLocaleTimeString("ja-JP",{timeZone:"Asia/Tokyo",hour:"2-digit",minute:"2-digit"});
 const S={tick:{},shown:{},ohlc:{},hist:{},status:null,seen:0,eqShown:0,focus:0,focusAt:0,mood:{},ax:{}};
 PAIRS.forEach(p=>{S.mood[p]={state:"watch",until:0};S.hist[p]=[];});
-S.h1={};
+S.h1={}; S.fx={}; S.talk={};
 
 // TV表示のときは描画全体を拡大（文字・線を遠くから見やすく）
 /* iPhone（Safari）は、ぼかし（光る効果）を毎秒何十回も描くと固まる。iPhoneでは
@@ -449,7 +449,7 @@ function renderFunnel(d){
    ${top?`<div class="why">見送りの理由：${top}</div>`:""}`;
 }
 let banT;
-let AC=null, SOUND=store.get("rb_snd")==="1";
+let AC=null, SOUND=store.get("rb_snd")!=="0";   // 最初から音あり。🔇で消すと覚えておく
 /* iPhoneの音のルール
    ① 音は「画面をタップした瞬間」にしか鳴らし始められない → タップのたびに音の仕組みを起こしておく
    ② 横のマナースイッチがオンだとWebの音は消える → 「音楽と同じ扱い」にして、マナーモードでも鳴るようにする */
@@ -474,6 +474,14 @@ function play(kind){
   else if(kind==="win"){[784,988,1175,1568].forEach((f,i)=>tone(f,i*.08,.35,"square",.07));}
   else if(kind==="lose"){tone(330,0,.35,"sine",.18);tone(247,.2,.5,"sine",.15);}
   else if(kind==="lvup"){[523,659,784,1047,1319].forEach((f,i)=>tone(f,i*.1,.4,"square",.07));}
+  else if(kind==="news"){tone(1319,0,.16,"sine",.13);tone(1760,.11,.32,"sine",.11);}                 // ピロン
+  else if(kind==="tap"){tone(880,0,.06,"square",.04);}                                               // ポッ
+  else if(kind==="talk"){const n=3+Math.floor(Math.random()*4);for(let k=0;k<n;k++)tone(420+Math.random()*520,k*.075,.06,"square",.045);}  // ロボの声
+  else if(kind==="jump"){const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime+.02;o.type="square";
+    o.frequency.setValueAtTime(330,t);o.frequency.exponentialRampToValueAtTime(990,t+.14);g.gain.setValueAtTime(.05,t);g.gain.exponentialRampToValueAtTime(.001,t+.18);
+    o.connect(g).connect(AC.destination);o.start(t);o.stop(t+.2);}                                    // ぴょん
+  else if(kind==="dance"){[659,784,988,784,1175].forEach((f,i)=>tone(f,i*.09,.12,"triangle",.08));}
+  else if(kind==="sad"){tone(392,0,.25,"sine",.12);tone(311,.2,.45,"sine",.1);}
 }
 function sfx(kind){ if(!SOUND)return; try{
   AC=AC||new (window.AudioContext||window.webkitAudioContext)();
@@ -646,6 +654,10 @@ function drawBot(x,p,cx,base,u,now,i){
   if(st==="buy")bob=Math.sin(t*10)*u*.5;
   if(st==="lose")bob=u*.8;
   if(st==="sleep")bob=Math.sin(t*1.2)*u*.2+u*.5;
+  const bfx=S.fx[p]; if(bfx&&now<bfx.until){const k=(bfx.until-now)/bfx.len;
+    if(bfx.kind==="jump")bob=-Math.abs(Math.sin((1-k)*Math.PI*3))*u*4*k;
+    else if(bfx.kind==="dance")bob=-Math.abs(Math.sin(t*9))*u*2.4;
+    else if(bfx.kind==="sad")bob=u*1.2;}
   // 影
   x.fillStyle="rgba(0,0,0,.45)"; x.beginPath(); x.ellipse(cx,base+u*.5,u*9,u*1.6,0,0,7); x.fill();
   // 連勝オーラ（3連勝以上）
@@ -716,8 +728,9 @@ function drawBot(x,p,cx,base,u,now,i){
   const jd=judge(p); let wt=jd?(jd.entry?"買い時！":(S.narrowR?"あと":"上抜けまで")+pct(jd.dist,1)):null;
   const rj=S.status&&S.status.last_reject&&S.status.last_reject[p]; if(rj&&Date.now()-rj.ts<36e5)wt=S.narrowR?"見送り":"見送り："+rj.reason.split("（")[0];
   const ord=S.status&&(S.status.orders||[]).find(o=>o.pair===p); if(ord)wt="指値で待機";
-  const say={buy:"買った！",win:"利確！",lose:"損切り…",sleep:"Zzz",hold:hp,watch:wt}[st];
-  if(say){x.font=`bold ${Math.max(10,u*2)}px "Hiragino Sans",sans-serif`; const tw=x.measureText(say).width+u*2.4, bx=S.narrowR?cx-tw/2:cx+u*(hw/2+1.5), byy=(S.narrowR?base-u*38-(i%2?u*6:0):hy-u*1.5)+(st==="sleep"?Math.sin(t*2)*u:0);
+  let say={buy:"買った！",win:"利確！",lose:"損切り…",sleep:"Zzz",hold:hp,watch:wt}[st];
+  const tk=S.talk[p]; if(tk&&Date.now()<tk.until)say=tk.text;
+  if(say){x.font=`bold ${Math.max(10,u*2)}px "Hiragino Sans",sans-serif`; const tw=x.measureText(say).width+u*2.4, RW=x.canvas.width/(CR.k||1), bx=Math.max(3,Math.min(RW-tw-3,S.narrowR?cx-tw/2:cx+u*(hw/2+1.5))), byy=(S.narrowR?base-u*38-(i%2?u*6:0):hy-u*1.5)+(st==="sleep"?Math.sin(t*2)*u:0);
     x.fillStyle=st==="lose"?"rgba(255,85,119,.9)":st==="win"?"rgba(255,198,92,.95)":st==="sleep"?"rgba(154,143,176,.5)":"rgba(241,233,255,.92)";
     rr(x,bx,byy,tw,u*3.6,u*1); x.fill(); x.fillStyle="#120a1f"; x.fillText(say,bx+tw/2,byy+u*2.6);}
   x.textAlign="left";
@@ -857,7 +870,7 @@ $("hb").onclick=e=>{e.stopPropagation();const d=S.status,p=$("hbp");if(p.classLi
   p.innerHTML=`<b>ボットの心拍</b><br>最後に動いた時刻：<b>${new Date(d.updated_at).toLocaleString("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</b>（${ago(age)}）<br>
   次の4時間足の確定まで：<b>${cd(Math.ceil(Date.now()/BAR4)*BAR4-Date.now())}</b><br>
   後追いで処理した足：<b>${(d.catchup_bars||0).toLocaleString()}本</b>（通算）<br>
-  <span style="color:var(--mute);font-size:10px">画面の版 2026-11-25 16:40</span><br>
+  <span style="color:var(--mute);font-size:10px">画面の版 2026-11-25 17:00</span><br>
   <span style="color:var(--mute);font-size:11px">GitHubの定期実行は遅れることがあります。遅れても飛ばした足をさかのぼって判断するので、8時間以内なら心配いりません。${age>=14*36e5?'<br><span class="down">⚠ 長く動いていません。GitHubのActions画面を確認してください。</span>':""}</span>`;}};
 document.addEventListener("click",e=>{if(!e.target.closest("#hbp"))$("hbp").classList.remove("show");});
 setInterval(heartbeat,1000);
@@ -1059,7 +1072,9 @@ async function loadNews(){
     const fresh=d.items.filter(n=>n.ts>NEWS.seen&&Date.now()-n.ts<3*36e5);
     NEWS.items=d.items; renderTicker(); renderNews();
     if(NEWS.seen&&fresh.length){const n=fresh[0];$("nbar").classList.remove("flash");void $("nbar").offsetWidth;$("nbar").classList.add("flash");
-      toast("📰 "+n.title.slice(0,40)+(n.title.length>40?"…":""));}
+      toast("📰 "+n.title.slice(0,40)+(n.title.length>40?"…":""));
+      sfx("news"); const ps=(n.coins&&n.coins.length?n.coins:[PAIRS[Math.floor(Math.random()*NP)]]);
+      ps.slice(0,3).forEach((p,k)=>setTimeout(()=>botAct(p,"jump","ニュース！",false),300+k*250));}
     NEWS.seen=Math.max(NEWS.seen,d.items[0].ts); store.set("rb_news_seen",String(NEWS.seen));
   }catch(e){}
 }
@@ -1080,6 +1095,49 @@ function renderNews(){
 }
 $("nLab").onclick=()=>{setMt("news");document.querySelector(".pane.month").scrollIntoView({behavior:"smooth",block:"start"});};
 loadNews(); setInterval(()=>{if(!document.hidden)loadNews();},120000);
+
+/* ================= ボットたちの演出（しゃべる・跳ねる・反応する） ================= */
+function botAct(p,kind,text,sound){
+  const now=performance.now(), len=kind==="dance"?2600:kind==="sad"?2200:900;
+  S.fx[p]={kind,until:now+len,len}; if(text)S.talk[p]={text,until:Date.now()+4200};
+  if(sound!==false)sfx(sound||(kind==="dance"?"dance":kind==="sad"?"sad":"jump"));
+  if(text&&sound!==false)setTimeout(()=>sfx("talk"),kind==="jump"?160:400);
+}
+const LINES={
+  idle:["見張り中👀","いい足、来ないかな","チャート見てるよ","買いどき待ち…","今日も監視！","落ち着いていこう"],
+  up:p=>[`24hで${pct(S.tick[p].last/S.tick[p].open-1,1)}！`,"いい感じ！","上がってる〜"],
+  down:p=>[`24hで${pct(S.tick[p].last/S.tick[p].open-1,1)}…`,"下げてるね…","がまんの時"],
+};
+function chatter(){
+  if(document.hidden||!S.status)return;
+  const p=PAIRS[Math.floor(Math.random()*NP)], t=S.tick[p]; let text;
+  const ch=t?t.last/t.open-1:0, jd=judge(p);
+  if(S.status.halted)text="おやすみ中…Zzz";
+  else if(jd&&jd.entry)text="買いの条件！";
+  else if(jd&&jd.dist<.03&&Math.random()<.6)text=`あと${pct(jd.dist,1)}で買い！`;
+  else if(Math.abs(ch)>.02&&Math.random()<.6)text=(ch>0?LINES.up(p):LINES.down(p))[Math.floor(Math.random()*3)];
+  else text=LINES.idle[Math.floor(Math.random()*LINES.idle.length)];
+  botAct(p,"jump",text,ch<-.03?false:undefined); if(ch<-.03){S.fx[p]={kind:"sad",until:performance.now()+2200,len:2200};sfx("talk");}
+}
+setInterval(chatter,20000+Math.random()*5000);
+// 大きく動いたコインは、1時間に1回だけ踊る／しょんぼりする
+const moved={};
+setInterval(()=>{PAIRS.forEach(p=>{const t=S.tick[p];if(!t)return;const ch=t.last/t.open-1;
+  if(Math.abs(ch)>=.05&&Date.now()-(moved[p]||0)>36e5){moved[p]=Date.now();
+    botAct(p,ch>0?"dance":"sad",ch>0?`${pct(ch,1)}！やった！`:`${pct(ch,1)}…`);}});},15000);
+// ボットをタップすると反応
+$("cvR").addEventListener("click",e=>{
+  const r=$("cvR").getBoundingClientRect(), fx=(e.clientX-r.left)/r.width;
+  let best=0; PAIRS.forEach((p,i)=>{if(Math.abs(BX(i)-fx)<Math.abs(BX(best)-fx))best=i;});
+  if(Math.abs(BX(best)-fx)>.1)return;
+  const p=PAIRS[best], bs=botStats(p), lv=level(p).lv, t=S.tick[p], ch=t?t.last/t.open-1:0;
+  const opts=[`${CHAR[p].name}だよ！Lv.${lv}`, t?`${fmt(t.last,p)}（24h ${pct(ch,1)}）`:"よろしく！", bs.trades?`通算${bs.wins}勝${bs.trades-bs.wins}敗`:"まだ取引なし",
+    judge(p)?`上抜けまで${pct(judge(p).dist,1)}`:"見張ってるよ"];
+  botAct(p,"jump",opts[Math.floor(Math.random()*opts.length)]);
+  S.focus=best; S.focusAt=performance.now()+45000; markSel(); loadMarket(true);
+});
+// コインのタイル・メニューを押したら「ポッ」
+document.querySelectorAll(".tile.coin,.bnav a,.bnav button,.mtabs button").forEach(el=>el.addEventListener("click",()=>sfx("tap")));
 
 /* ================= ループ ================= */
 let last=performance.now();

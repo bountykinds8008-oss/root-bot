@@ -11,11 +11,11 @@ from . import config as C
 NAMES = {"btc_jpy": "BTC", "xrp_jpy": "XRP", "sol_jpy": "SOL", "eth_jpy": "ETH", "bnb_jpy": "BNB"}
 
 
-def send(title, message, tags=(), priority=3):
+def send(title, message, tags=(), priority=3, click=None):
     if not C.NOTIFY_TOPIC:
         return
     body = {"topic": C.NOTIFY_TOPIC, "title": title, "message": message, "tags": list(tags),
-            "priority": priority, "click": C.DASHBOARD_URL}
+            "priority": priority, "click": click or C.DASHBOARD_URL}
     try:
         req = urllib.request.Request("https://ntfy.sh/", data=json.dumps(body).encode(),
                                      headers={"Content-Type": "application/json"}, method="POST")
