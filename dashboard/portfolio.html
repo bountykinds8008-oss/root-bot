@@ -90,6 +90,11 @@ addEventListener("unhandledrejection",function(e){bar("⚠ エラー："+String(
   .acc .bd .err{color:var(--down);font-size:12px;padding:6px 0}
   .acc .bd .ops{display:flex;gap:8px;margin-top:8px}
   .acc .bd .ops button{background:none;border:1px solid var(--line);border-radius:7px;padding:4px 10px;font-size:12px;color:var(--mute)}
+  .acc .bd .ren{display:flex;gap:6px;margin-top:8px}
+  .acc .bd .ren input{flex:1;min-width:0;background:var(--pane2);border:1px solid var(--edge);border-radius:8px;padding:8px 10px;font-size:16px}
+  .acc .bd .ren button{background:var(--edge);color:#1a0716;border:none;border-radius:8px;padding:0 12px;font-weight:700;font-size:13px}
+  .acc .bd .ren button[data-act=cancel]{background:none;border:1px solid var(--line);color:var(--mute);font-weight:400}
+  .acc .bd .ops button[data-act=name]{color:var(--text);border-color:rgba(255,95,199,.5)}
   .add{width:100%;padding:14px;border-radius:12px;border:1px dashed rgba(255,95,199,.6);background:rgba(255,95,199,.06);color:#fff;font-weight:700;font-size:15px}
   .add:active{transform:scale(.99)}
   .empty{text-align:center;color:var(--mute);font-size:13px;padding:8px 0 14px}
@@ -213,7 +218,7 @@ addEventListener("unhandledrejection",function(e){bar("⚠ エラー："+String(
   <div id="t5"></div>
 </section>
 
-<p class="foot">ウォレットは Ethereum・BNB Chain・Polygon・Arbitrum・Base・Solana の基本通貨と USDT/USDC を表示します（ほかのトークン・NFTは対象外）。取引所は「残高を見る」だけの権限のAPIキーを使います。キーはこの端末の中だけに保存し、残高を取りに行くときだけ使います。円換算は bitbank の価格（無いものは CoinGecko・GMOコインの換算レート）で計算します。<br>画面の版 2026-11-25 16:30</p>
+<p class="foot">ウォレットは Ethereum・BNB Chain・Polygon・Arbitrum・Base・Solana の基本通貨と USDT/USDC を表示します（ほかのトークン・NFTは対象外）。取引所は「残高を見る」だけの権限のAPIキーを使います。キーはこの端末の中だけに保存し、残高を取りに行くときだけ使います。円換算は bitbank の価格（無いものは CoinGecko・GMOコインの換算レート）で計算します。<br>画面の版 2026-11-25 16:25</p>
 
 <!-- つなぐシート -->
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shT">

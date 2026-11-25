@@ -114,8 +114,17 @@ function render() {
       <div class="bd">
         ${res.state ? `<div class="err">⚠ ${esc(res.state)}</div>` : ""}${res.note ? `<div class="err" style="color:var(--gold)">${esc(res.note)}</div>` : ""}
         ${(res.rows || []).sort((a, z) => z.qty * (price(z.symbol) || 0) - a.qty * (price(a.symbol) || 0)).map(r => `<div class="r"><span>${esc(r.symbol)} <span class="mute num" style="font-size:12px">${qtyFmt(r.qty)}</span>${r.where ? `<span class="mute" style="font-size:11px">・${esc(r.where)}</span>` : ""}</span><span class="num">${price(r.symbol) ? yen(r.qty * price(r.symbol)) : "価格なし"}</span></div>`).join("") || (res.state ? "" : `<div class="mute" style="padding:6px 0">残高はありません</div>`)}
-        <div class="ops"><button data-act="del">このつなぎ先を外す</button></div></div>`;
+        <div class="ops"><button data-act="name">✏️ 名前を付ける</button><button data-act="del">このつなぎ先を外す</button></div>
+        <div class="ren" hidden><input maxlength="20" placeholder="${esc(b.name)}" value="${esc(c.label || "")}" aria-label="表示名">
+          <button data-act="save">保存</button><button data-act="cancel">やめる</button></div></div>`;
     el.querySelector(".hd").onclick = () => { openId = openId === c.id ? null : c.id; render(); };
+    const ren = el.querySelector(".ren"), ops = el.querySelector(".ops"), inp = ren.querySelector("input");
+    el.querySelector("[data-act=name]").onclick = e => { e.stopPropagation(); ops.hidden = true; ren.hidden = false; inp.focus(); inp.select(); };
+    el.querySelector("[data-act=cancel]").onclick = e => { e.stopPropagation(); ren.hidden = true; ops.hidden = false; };
+    const saveName = () => { const v = inp.value.trim(); if (v) c.label = v; else delete c.label; save(); render(); };
+    el.querySelector("[data-act=save]").onclick = e => { e.stopPropagation(); saveName(); };
+    inp.onclick = e => e.stopPropagation();
+    inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); saveName(); } };
     el.querySelector("[data-act=del]").onclick = e => {
       e.stopPropagation();
       if (!confirm(`「${c.label || b.name}」を外しますか？（この端末に保存したキーも消えます）`)) return;
