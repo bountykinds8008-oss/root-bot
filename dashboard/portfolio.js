@@ -404,6 +404,7 @@ function added(c) {
 const TOP5 = [["btc_jpy", "BTC", "ビットコイン"], ["xrp_jpy", "XRP", "リップル"], ["sol_jpy", "SOL", "ソラナ"],
   ["eth_jpy", "ETH", "イーサリアム"], ["bnb_jpy", "BNB", "BNB"]];
 const spark = {};
+let lastTickers = {};
 const pxFmt = (p, v) => "¥" + (p === "xrp_jpy" ? v.toFixed(3) : p === "sol_jpy" ? v.toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : Math.round(v).toLocaleString("ja-JP"));
 async function loadTop5(withSpark) {
   try {
@@ -415,6 +416,7 @@ async function loadTop5(withSpark) {
   } catch { $("t5t").textContent = "価格を取得できませんでした"; }
 }
 function renderTop5(t) {
+  lastTickers = t;
   const hold = new Map();
   for (const c of conns) for (const r of last.results[c.id]?.rows || []) hold.set(r.symbol, (hold.get(r.symbol) || 0) + r.qty);
   $("t5").innerHTML = TOP5.map(([p, s, n]) => {
@@ -442,6 +444,42 @@ setInterval(() => { if (!document.hidden) loadTop5(false); }, 15000);
 setInterval(() => { if (!document.hidden) loadTop5(true); }, 10 * 60000);
 
 $("refresh").onclick = () => { refresh(); loadTop5(true); };
+
+// ---------------- 共有（金額は最初は隠す） ----------------
+$("shareBtn").onclick = () => {
+  const rates = last.quotes?.rates || {}, price = sy => sy === "JPY" ? 1 : rates[sy];
+  const hold = new Map(); let total = 0;
+  for (const c of conns) for (const r of last.results[c.id]?.rows || []) { const p = price(r.symbol); if (!p) continue;
+    hold.set(r.symbol, (hold.get(r.symbol) || 0) + r.qty * p); total += r.qty * p; }
+  const parts = [...hold].sort((a, z) => z[1] - a[1]);
+  const top = parts.slice(0, 6), rest = parts.slice(6).reduce((s, p) => s + p[1], 0); if (rest > 0) top.push(["その他", rest]);
+  RBShare.open({
+    fileName: "rootbot-assets.png", url: location.origin + "/desk",
+    option: "金額も見せる", optionDefault: false,
+    note: "最初は割合（%）だけの画像です。金額は「金額も見せる」にチェックしたときだけ入ります。リンク先はボット画面で、あなたの口座は見えません。",
+    text: show => total ? `わたしの暗号資産の割合${show ? `（合計 ${yen(total)}）` : ""}：` + top.slice(0, 4).map(([s, v]) => `${s} ${(v / total * 100).toFixed(0)}%`).join("・") : "ROOT BOT で5大コインを見ています",
+    draw(x, { W, H, base, rr, opt: show }) {
+      base(x, "資産の割合", "5大コイン");
+      x.fillStyle = "#9a8fb0"; x.font = "30px -apple-system,'Hiragino Sans',sans-serif"; x.fillText("合計（円換算）", 80, 300);
+      x.fillStyle = "#fff"; x.font = "800 88px ui-monospace,Menlo,monospace"; x.fillText(total ? (show ? yen(total) : "非公開") : "—", 80, 392);
+      const cx = 290, cy = 640, R = 190; let a = -Math.PI / 2;
+      x.lineWidth = 64; x.strokeStyle = "#24193a"; x.beginPath(); x.arc(cx, cy, R, 0, 7); x.stroke();
+      for (const [s, v] of top) { const da = v / (total || 1) * Math.PI * 2; const col = s === "その他" ? "#4a3f66" : colorOf(s);
+        x.strokeStyle = col; x.shadowColor = col; x.shadowBlur = 16; x.beginPath(); x.arc(cx, cy, R, a + .02, a + da - .02); x.stroke(); a += da; }
+      x.shadowBlur = 0;
+      top.forEach(([s, v], i) => { const y = 500 + i * 60;
+        x.fillStyle = s === "その他" ? "#4a3f66" : colorOf(s); rr(x, 560, y - 30, 26, 26, 6); x.fill();
+        x.fillStyle = "#f1e9ff"; x.font = "700 34px -apple-system,'Hiragino Sans',sans-serif"; x.fillText(s, 604, y);
+        x.textAlign = "right"; x.font = "700 34px ui-monospace,Menlo,monospace"; x.fillText((v / (total || 1) * 100).toFixed(1) + "%", W - 80, y); x.textAlign = "left"; });
+      x.fillStyle = "#ff5fc7"; x.font = "700 30px -apple-system,'Hiragino Sans',sans-serif"; x.fillText("5大コイン（bitbank）", 80, 935);
+      TOP5.forEach(([p, s, n], i) => { const y = 990 + i * 52, t = lastTickers[p];
+        x.fillStyle = colorOf(s); rr(x, 80, y - 32, 10, 38, 4); x.fill();
+        x.fillStyle = "#f1e9ff"; x.font = "700 30px -apple-system,'Hiragino Sans',sans-serif"; x.fillText(n, 106, y);
+        if (t) { const ch = t.last / t.open - 1; x.textAlign = "right"; x.font = "700 30px ui-monospace,Menlo,monospace"; x.fillText(pxFmt(p, t.last), W - 270, y);
+          x.fillStyle = ch > 0 ? "#3ff2b5" : ch < 0 ? "#ff5577" : "#f1e9ff"; x.fillText((ch >= 0 ? "+" : "") + (ch * 100).toFixed(2) + "%", W - 80, y); x.textAlign = "left"; } });
+    },
+  });
+};
 setInterval(() => { if (!document.hidden) refresh(); }, 60000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - last.at > 30000) refresh(); });
 render();

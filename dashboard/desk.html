@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0612">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ROOT BOT">
+<meta property="og:title" content="ROOT BOT｜5大コインの自動売買ボット">
+<meta property="og:description" content="ビットコイン・リップル・ソラナ・イーサリアム・BNB。5体のボットが売買の判断を見せてくれる画面です。">
+<meta property="og:image" content="https://root-bot-dashboard.vercel.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta property="og:url" content="https://root-bot-dashboard.vercel.app/desk">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
@@ -116,7 +125,7 @@
     .hb .t2{display:none}
     .bar .logo{font-size:12px;letter-spacing:.16em} .bar .logo small{display:none} .bar .rec{margin-left:6px}
     .bar .tb{padding:3px 7px;font-size:10px;white-space:nowrap} .bar #bTv{display:none} .clock{display:none}
-    .bar>div:last-child{gap:5px!important} .hb{padding:2px 7px}
+    .bar>div:last-child{gap:4px!important} .hb{padding:2px 7px} .bar .tb{padding:3px 6px}
     .tiles{grid-template-columns:repeat(6,1fr);gap:5px}
     .tile{padding:5px 7px} .tile .k{font-size:8px;letter-spacing:.08em} .tile .k span{display:none}
     .tile .v{font-size:clamp(12px,3.9vw,17px);margin-top:1px} .tile .s{font-size:9px}
@@ -186,7 +195,7 @@
 </head>
 <body>
 <div id="desk">
-  <div class="bar"><div class="logo">ROOT BOT DESK<small id="mode">PAPER</small><span class="rec"><i></i>LIVE</span></div><div style="display:flex;align-items:center;gap:8px"><span class="hb" id="hb"><i></i><span id="hbT">確認中</span></span><a class="tb" href="/portfolio">資産一覧</a><button class="tb" id="bNt" title="スマホ通知">🔔</button><button class="tb" id="bSnd" title="売買の音">🔇 音</button><button class="tb" id="bTv" title="テレビ表示">📺 TV</button><div class="clock num" id="clock"></div></div></div>
+  <div class="bar"><div class="logo">ROOT BOT DESK<small id="mode">PAPER</small><span class="rec"><i></i>LIVE</span></div><div style="display:flex;align-items:center;gap:8px"><span class="hb" id="hb"><i></i><span id="hbT">確認中</span></span><a class="tb" href="/portfolio">資産一覧</a><button class="tb" id="bShare" title="共有">📤</button><button class="tb" id="bNt" title="スマホ通知">🔔</button><button class="tb" id="bSnd" title="売買の音">🔇 音</button><button class="tb" id="bTv" title="テレビ表示">📺 TV</button><div class="clock num" id="clock"></div></div></div>
   <div class="tiles">
     <div class="pane tile"><div class="k">総資産<span>EQUITY</span></div><div class="v num" id="tEq">—</div><div class="s num" id="tEqS">—</div></div>
     <div class="pane tile"><div class="k">今月<span>MONTH</span></div><div class="v num" id="tM">—</div><div class="bar2"><i id="tMb"></i></div></div>
@@ -385,7 +394,7 @@ function toast(msg){let t=$("toast");if(!t){t=document.createElement("div");t.id
   document.body.append(t);}t.textContent=msg;t.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.opacity=0,3500);}
 let hinted=0;
 function sndHint(){if(Date.now()-hinted<6e4)return;hinted=Date.now();toast("🔇 音を出すには、画面をどこか1回タップしてください");}
-function setSnd(on,user){SOUND=on;store.set("rb_snd",on?"1":"0");$("bSnd").textContent=on?"🔊 音":"🔇 音";$("bSnd").classList.toggle("on",on);
+function setSnd(on,user){SOUND=on;store.set("rb_snd",on?"1":"0");$("bSnd").textContent=(on?"🔊":"🔇")+(innerWidth<520?"":" 音");$("bSnd").classList.toggle("on",on);
   if(on&&user){unlockAudio();sfx("buy");}}
 $("bSnd").onclick=()=>setSnd(!SOUND,true); setSnd(SOUND,false);
 function setTv(on){document.body.classList.toggle("tv",on);$("bTv").classList.toggle("on",on);store.set("rb_tv",on?"1":"0");
@@ -861,6 +870,37 @@ $("ntCopy").onclick=async()=>{try{await navigator.clipboard.writeText($("ntTopic
   catch{const r=document.createRange();r.selectNodeContents($("ntTopic"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("ntCopy").textContent="選択しました";}
   store.set("rb_ready_notify","1");setTimeout(()=>$("ntCopy").textContent="コピー",2000);};
 
+/* ================= 共有（画像つき） ================= */
+$("bShare").onclick=()=>{
+  const d=S.status; if(!d){toast("読み込み中です。少し待ってからもう一度");return;}
+  const live=d.mode==="live", tot=d.equity/d.total_start_equity-1, mon=d.month_return;
+  RBShare.open({
+    fileName:"rootbot-desk.png", url:location.origin+"/desk",
+    option:"金額を隠す（%だけ見せる）", optionDefault:false,
+    note:live?"本番の成績です。金額を隠す場合は上にチェック。":"仮想売買（お金を使わないテスト）の成績です。",
+    text:hide=>`ROOT BOT（${live?"本番":"仮想売買"}）${hide?"":"総資産 "+yen(d.equity)+"・"}通算 ${pct(tot)}・今月 ${pct(mon)}`,
+    draw(x,{W,H,base,rr,line,opt:hide}){
+      base(x,"ボットの成績",live?"本番":"仮想売買");
+      x.fillStyle="#9a8fb0";x.font="30px -apple-system,'Hiragino Sans',sans-serif";x.fillText("総資産",80,300);
+      x.fillStyle="#fff";x.font="800 92px ui-monospace,Menlo,monospace";x.fillText(hide?"非公開":yen(d.equity),80,395);
+      const kv=(k,v,c,xx)=>{x.fillStyle="#9a8fb0";x.font="28px -apple-system,'Hiragino Sans',sans-serif";x.fillText(k,xx,470);
+        x.fillStyle=c;x.font="800 52px ui-monospace,Menlo,monospace";x.fillText(v,xx,530);};
+      const col=v=>v>0?"#3ff2b5":v<0?"#ff5577":"#f1e9ff";
+      kv("通算",pct(tot),col(tot),80); kv("今月",pct(mon),col(mon),400); kv("保有",`${d.positions.length}/${NP}`,"#ffc65c",720);
+      const eh=(d.equity_history||[]).slice(-400).map(r=>r[1]);
+      x.fillStyle="rgba(255,255,255,.03)";rr(x,80,570,W-160,250,20);x.fill();
+      line(x,eh,100,600,W-200,200,tot>=0?"#3ff2b5":"#ff5577");
+      x.fillStyle="#ff5fc7";x.font="700 30px -apple-system,'Hiragino Sans',sans-serif";x.fillText("5大コイン",80,885);
+      PAIRS.forEach((p,i)=>{const y=940+i*58,t=S.tick[p];
+        x.fillStyle=COIN[p];rr(x,80,y-34,10,40,4);x.fill();
+        x.fillStyle="#f1e9ff";x.font="700 32px -apple-system,'Hiragino Sans',sans-serif";x.fillText(NAME[p],106,y);
+        if(t){const ch=t.last/t.open-1;x.textAlign="right";x.font="700 32px ui-monospace,Menlo,monospace";x.fillText(fmt(t.last,p),W-280,y);
+          x.fillStyle=col(ch);x.fillText(pct(ch),W-80,y);x.textAlign="left";}});
+      const b=S.bt; if(b){x.fillStyle="#9a8fb0";x.font="26px -apple-system,'Hiragino Sans',sans-serif";
+        x.fillText(`作戦の過去データ検証：通算 ${pct(b.total_return,1)}・最大の落ち込み ${pct(b.max_drawdown,1)}・勝率 ${Math.round((b.win_rate||0)*100)}%`,80,1240);}
+    }});
+};
+
 /* ================= ループ ================= */
 let last=performance.now();
 function frame(now){
@@ -930,5 +970,6 @@ requestAnimationFrame(frame);
 <script>/* オフライン用の仕組み（Service Worker）は、更新のたびに画面が真っ白になる原因になったので廃止。残っていれば外す */
 if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});}
 if(window.caches){caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))).catch(()=>{});}</script>
+<script src="/share.js"></script>
 </body>
 </html>
