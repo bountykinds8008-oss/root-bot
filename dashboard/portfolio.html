@@ -154,6 +154,25 @@ addEventListener("unhandledrejection",function(e){bar("⚠ エラー："+String(
   .go[disabled]{opacity:.45}
   .msg{font-size:12px;color:var(--down);min-height:1.4em;margin:-4px 0 8px}
   [hidden]{display:none!important}
+  .c5{cursor:pointer;-webkit-tap-highlight-color:transparent;border-radius:8px;transition:background .2s}
+  .c5:active{background:rgba(255,95,199,.08)}
+  .c5 .go{color:var(--mute);font-size:16px;margin-left:2px}
+  /* 下のメニュー（スマホ） */
+  .bnav{display:none}
+  @media (max-width:720px){
+    body{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+    .hbtn{display:none}
+    .bnav{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:40;
+      padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:rgba(10,6,18,.86);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+      border-top:1px solid rgba(255,95,199,.35);box-shadow:0 -6px 24px rgba(0,0,0,.45)}
+    .bnav a,.bnav button{all:unset;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 0;border-radius:10px;cursor:pointer;
+      font:600 10px -apple-system,"Hiragino Sans",sans-serif;color:var(--mute);-webkit-tap-highlight-color:transparent;position:relative}
+    .bnav .i{font-size:20px;line-height:1.1;filter:grayscale(.4)}
+    .bnav .on{color:#fff}.bnav .on .i{filter:none;text-shadow:0 0 12px var(--edge)}
+    .bnav .on::before{content:"";position:absolute;top:-7px;width:22px;height:3px;border-radius:3px;background:var(--edge);box-shadow:0 0 10px var(--edge)}
+    .bnav a:active,.bnav button:active{background:rgba(255,95,199,.12)}
+    .busy .bnav #nRf .i{animation:rot 1s linear infinite}
+  }
 </style>
 </head>
 <body>
@@ -194,7 +213,7 @@ addEventListener("unhandledrejection",function(e){bar("⚠ エラー："+String(
   <div id="t5"></div>
 </section>
 
-<p class="foot">ウォレットは Ethereum・BNB Chain・Polygon・Arbitrum・Base・Solana の基本通貨と USDT/USDC を表示します（ほかのトークン・NFTは対象外）。取引所は「残高を見る」だけの権限のAPIキーを使います。キーはこの端末の中だけに保存し、残高を取りに行くときだけ使います。円換算は bitbank の価格（無いものは CoinGecko・GMOコインの換算レート）で計算します。</p>
+<p class="foot">ウォレットは Ethereum・BNB Chain・Polygon・Arbitrum・Base・Solana の基本通貨と USDT/USDC を表示します（ほかのトークン・NFTは対象外）。取引所は「残高を見る」だけの権限のAPIキーを使います。キーはこの端末の中だけに保存し、残高を取りに行くときだけ使います。円換算は bitbank の価格（無いものは CoinGecko・GMOコインの換算レート）で計算します。<br>画面の版 2026-11-25 16:30</p>
 
 <!-- つなぐシート -->
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shT">
@@ -216,7 +235,13 @@ addEventListener("unhandledrejection",e=>{const b=document.getElementById("jsErr
 <script>/* オフライン用の仕組み（Service Worker）は、更新のたびに画面が真っ白になる原因になったので廃止。残っていれば外す */
 if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});}
 if(window.caches){caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))).catch(()=>{});}</script>
-<div id="rbVer" style="position:fixed;left:6px;bottom:4px;z-index:98;font:10px ui-monospace,monospace;color:#6d6385;pointer-events:none">版 2026-11-25 15:05</div>
+<nav class="bnav" aria-label="メニュー">
+  <a href="/desk"><span class="i">🤖</span>ボット</a>
+  <a class="on" href="/portfolio"><span class="i">💰</span>資産</a>
+  <button id="nAdd"><span class="i">➕</span>つなぐ</button>
+  <button id="nShare"><span class="i">📤</span>共有</button>
+  <button id="nRf"><span class="i">↻</span>更新</button>
+</nav>
 <script src="/share.js"></script>
 <script type="module" src="/portfolio.js"></script>
 </body>

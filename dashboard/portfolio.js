@@ -422,7 +422,7 @@ function renderTop5(t) {
   $("t5").innerHTML = TOP5.map(([p, s, n]) => {
     const k = t[p]; if (!k) return "";
     const ch = k.last / k.open - 1, mine = hold.get(s);
-    return `<div class="c5"><div class="ic" style="background:${colorOf(s)}">${s}</div>
+    return `<div class="c5" data-p="${p}" title="ボット画面でチャートを見る"><div class="ic" style="background:${colorOf(s)}">${s}</div>
       <div class="nm">${n}<small>${s}/JPY${mine ? `<span class="own">・保有 ${qtyFmt(mine)}</span>` : ""}</small></div>
       <canvas data-p="${p}"></canvas>
       <div class="px num">${pxFmt(p, k.last)}<small class="${ch > 0 ? "up" : ch < 0 ? "down" : ""}">24h ${(ch >= 0 ? "+" : "") + (ch * 100).toFixed(2)}%</small></div></div>`;
@@ -437,13 +437,17 @@ function renderTop5(t) {
     x.beginPath(); v.forEach((q, i) => i ? x.lineTo(X(i), Y(q)) : x.moveTo(X(i), Y(q))); x.lineTo(W, H); x.lineTo(0, H); x.fillStyle = g; x.fill();
     x.beginPath(); v.forEach((q, i) => i ? x.lineTo(X(i), Y(q)) : x.moveTo(X(i), Y(q))); x.strokeStyle = col; x.lineWidth = 1.4; x.stroke();
   });
-  $("t5t").textContent = "bitbankの価格・7日の動き";
+  $("t5t").textContent = "タップでチャート・7日の動き";
+  $("t5").querySelectorAll(".c5").forEach(r => r.onclick = () => { location.href = "/desk?coin=" + r.dataset.p; });
 }
 loadTop5(true);
 setInterval(() => { if (!document.hidden) loadTop5(false); }, 15000);
 setInterval(() => { if (!document.hidden) loadTop5(true); }, 10 * 60000);
 
 $("refresh").onclick = () => { refresh(); loadTop5(true); };
+$("nAdd").onclick = () => $("addBtn").click();
+$("nShare").onclick = () => $("shareBtn").click();
+$("nRf").onclick = () => $("refresh").click();
 
 // ---------------- 共有（金額は最初は隠す） ----------------
 $("shareBtn").onclick = () => {
