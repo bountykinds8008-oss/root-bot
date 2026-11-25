@@ -61,7 +61,7 @@
   async function build() {
     const c = document.createElement("canvas"); c.width = W; c.height = H;
     const x = c.getContext("2d");
-    if (IOS) Object.defineProperty(x, "shadowBlur", { get() { return 0; }, set() {} });   // iPhoneは光る効果なし（固まり防止）
+    if (IOS) try { Object.defineProperty(x, "shadowBlur", { get() { return 0; }, set() {} }); } catch (e) {}   // iPhoneは光る効果なし（固まり防止）
     cur.draw(x, { W, H, base, rr, line, opt: $(".opt input").checked });
     const blob = await new Promise(r => c.toBlob(r, "image/png"));
     file = new File([blob], cur.fileName || "rootbot.png", { type: "image/png" });
@@ -95,7 +95,7 @@
     const data = withFile ? { files: [file], text: text() + "\n" + url } : { title: "ROOT BOT", text: text(), url };
     navigator.share(data).then(() => say("共有しました")).catch(e => {
       if (e.name === "AbortError") return;
-      say("共有メニューを開けませんでした。「リンクだけ共有」か「画像を保存」を試してください");
+      say(`共有メニューを開けませんでした（${e.name}: ${e.message}）。「リンクだけ共有」か「画像を保存」を試してください`);
     });
   };
   box.querySelector("[data-a=link]").onclick = () => {

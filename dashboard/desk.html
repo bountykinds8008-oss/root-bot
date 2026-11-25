@@ -2,6 +2,16 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<script>/* 不具合の見える化：エラーや固まりを画面の下に表示する（iPhoneで原因を調べるため） */
+(function(){var shown={};function bar(msg){try{var b=document.getElementById("rbErr");if(!b){b=document.createElement("div");b.id="rbErr";
+b.style.cssText="position:fixed;left:8px;right:8px;bottom:8px;z-index:99;background:#2a0f18;color:#ffd7df;border:1px solid #ff5577;border-radius:10px;padding:8px 10px;font:12px/1.5 -apple-system,sans-serif;white-space:pre-wrap;max-height:40vh;overflow:auto";
+(document.body||document.documentElement).appendChild(b);b.onclick=function(){b.remove();};}
+if(shown[msg])return;shown[msg]=1;b.textContent+=(b.textContent?"\n":"")+msg;}catch(e){}}
+var ua=navigator.userAgent,ios=(ua.match(/OS (\d+)_(\d+)/)||[]);var ver=ios.length?"iOS "+ios[1]+"."+ios[2]:"";
+window.RBDiag=bar;
+addEventListener("error",function(e){var f=(e.filename||"").split("/").pop();bar("⚠ エラー："+(e.message||"不明")+(f?"（"+f+" "+e.lineno+"行）":"")+" "+ver+"\nこの文をスクショしてClaudeに送ってください（タップで閉じる）");},true);
+addEventListener("unhandledrejection",function(e){bar("⚠ エラー："+String(e.reason&&e.reason.message||e.reason)+" "+ver);});
+})();</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0612">
 <meta property="og:type" content="website">
@@ -269,7 +279,7 @@ S.h1={};
    ①ぼかしを使わない ②解像度は2倍まで ③1秒30回 ④見えている所だけ描く、にして軽くする */
 const IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
 function canvas(id){const c=$(id),x=c.getContext("2d");
-  if(IOS)Object.defineProperty(x,"shadowBlur",{get(){return 0},set(){}});
+  if(IOS)try{Object.defineProperty(x,"shadowBlur",{get(){return 0},set(){}});}catch(e){}
   const o={c,x,k:1,fit(){const r=c.getBoundingClientRect(),d=Math.min(IOS?2:4,devicePixelRatio||1);
   const z=document.body.classList.contains("tv")?Math.max(1,Math.min(1.8,innerWidth/1100)):1;
   if(c.width!==Math.round(r.width*d)||c.height!==Math.round(r.height*d)){c.width=Math.round(r.width*d);c.height=Math.round(r.height*d);}
@@ -914,6 +924,7 @@ if("IntersectionObserver" in window){const io=new IntersectionObserver(es=>es.fo
 const setText=(id,t)=>{const el=$(id);if(el.textContent!==t)el.textContent=t;};   // 変わったときだけ書き換える
 function frame(now){
   requestAnimationFrame(frame);
+  lastFrame=now;
   if(IOS&&now-last<31)return;                                   // iPhoneは1秒30回
   if(document.querySelector(".shx.show,.news.show"))return;     // 共有・お知らせを開いている間は止める
   const dt=Math.min(.1,(now-last)/1000); last=now;
@@ -924,6 +935,9 @@ function frame(now){
     mo.state=S.status.halted?"sleep":S.status.positions.some(q=>q.pair===p)?"hold":"watch";}
   if(VIS.room)drawRoom(now,dt); if(VIS.candle)drawCandles(); if(VIS.equity)drawEquity();
 }
+let lastFrame=performance.now();
+setInterval(()=>{if(document.hidden||document.querySelector(".shx.show,.news.show"))return;
+  const gap=performance.now()-lastFrame; if(gap>3000&&window.RBDiag)RBDiag(`⚠ 画面の動きが${Math.round(gap/1000)}秒止まっています（${IOS?"iPhone":"その他"}）`);},2000);
 setInterval(()=>$("clock").textContent=new Date().toLocaleString("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",weekday:"short",hour:"2-digit",minute:"2-digit",second:"2-digit"}),1000);
 
 /* ================= サンプル映像用 ================= */
