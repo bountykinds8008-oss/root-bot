@@ -1,0 +1,29 @@
+name: 端末の診断を受け取る
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: [".github/diag-request"]
+
+permissions:
+  contents: write
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: 直近2時間の診断を取得
+        run: |
+          mkdir -p data
+          curl -s "https://ntfy.sh/rootbot-diag-1cb1131e84ed/json?poll=1&since=2h" > data/diag.jsonl || true
+          wc -l data/diag.jsonl
+      - name: 保存
+        run: |
+          git config user.name "root-bot"
+          git config user.email "root-bot@users.noreply.github.com"
+          git add data/diag.jsonl
+          git diff --cached --quiet || git commit -m "diag" -q
+          for i in 1 2 3 4 5; do git pull --rebase -q && git push -q && break; sleep $((i*5)); done

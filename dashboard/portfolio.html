@@ -2,6 +2,20 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<script>/* 遠隔診断：iPhoneで固まる原因を調べるため、端末の状態をClaude宛てに送る（金額・鍵などは送らない） */
+(function(){var T0=Date.now(),R={v:1,page:location.pathname,ua:navigator.userAgent,w:innerWidth,h:innerHeight,dpr:devicePixelRatio,
+ standalone:!!(navigator.standalone||matchMedia("(display-mode: standalone)").matches),dvh:!!(window.CSS&&CSS.supports&&CSS.supports("height","1dvh")),
+ share:!!navigator.share,errs:[],steps:[],taps:[],frames:0,longest:0};window.RBR=R;
+ R.step=function(n){R.steps.push([n,Date.now()-T0]);};
+ addEventListener("error",function(e){R.errs.push(String(e.message)+" @"+String(e.filename||"").split("/").pop()+":"+e.lineno);},true);
+ addEventListener("unhandledrejection",function(e){R.errs.push("rej:"+String(e.reason&&e.reason.message||e.reason));});
+ addEventListener("pointerdown",function(e){var t=e.target&&e.target.closest?e.target.closest("button,a,[id]"):null;R.taps.push([(t&&(t.id||t.textContent||"").slice(0,12))||e.target.tagName,Date.now()-T0]);},true);
+ var lt=performance.now();(function f(n){R.frames++;var g=n-lt;if(g>R.longest)R.longest=Math.round(g);lt=n;requestAnimationFrame(f);})(lt);
+ function send(tag){try{R.tag=tag;R.t=Date.now()-T0;R.cv=[].map.call(document.querySelectorAll("canvas"),function(c){return c.id+":"+c.width+"x"+c.height;}).join(" ");
+  fetch("https://ntfy.sh/rootbot-diag-1cb1131e84ed",{method:"POST",body:JSON.stringify(R).slice(0,3800),keepalive:true}).catch(function(){});}catch(e){}}
+ setTimeout(function(){send("8s");},8000);setTimeout(function(){send("30s");},30000);
+ addEventListener("pagehide",function(){send("leave");});
+})();</script>
 <script>/* 不具合の見える化：エラーや固まりを画面の下に表示する（iPhoneで原因を調べるため） */
 (function(){var shown={};function bar(msg){try{var b=document.getElementById("rbErr");if(!b){b=document.createElement("div");b.id="rbErr";
 b.style.cssText="position:fixed;left:8px;right:8px;bottom:8px;z-index:99;background:#2a0f18;color:#ffd7df;border:1px solid #ff5577;border-radius:10px;padding:8px 10px;font:12px/1.5 -apple-system,sans-serif;white-space:pre-wrap;max-height:40vh;overflow:auto";
