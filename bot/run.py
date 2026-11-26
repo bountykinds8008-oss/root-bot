@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import bitbank, config as C, newsalert, notify
+from . import bitbank, config as C, daily, newsalert, notify
 from .brokers import LiveBroker, PaperBroker
 from .engine import new_state, step
 
@@ -100,6 +100,7 @@ def main():
     state["runs"] = runs[-400:]
     if os.environ.get("ROOT_BOT_NOTIFY", "yes") == "yes":
         newsalert.run(state, now)      # 大事なニュースの通知（既読の印を同じ保存に入れるため、保存の前に）
+        daily.run(state, summary, now)  # 毎晩のまとめ（1日1回）
     save(state, summary, market)
     if os.environ.get("ROOT_BOT_NOTIFY", "yes") == "yes":
         notify.trades([t for t in state["trades"] if t["ts"] > before["last_ts"]], state["mode"], summary["equity"])

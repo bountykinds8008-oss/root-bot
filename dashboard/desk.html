@@ -141,9 +141,13 @@ addEventListener("unhandledrejection",function(e){bar("⚠ エラー："+String(
   body.tv{cursor:none}
   body.tv #desk{grid-template-columns:1.25fr 1fr;grid-template-rows:auto auto 1fr;grid-template-areas:"bar bar" "tiles tiles" "room candle"}
   body.tv .feed,body.tv .equity,body.tv .month,body.tv .verify{display:none}
-  body.tv .tile .v{font-size:min(3.4vw,46px)} body.tv .tile .k{font-size:min(1.2vw,15px)} body.tv .tile .s{font-size:min(1.3vw,16px)}
+  body.tv .tile .v{font-size:min(1.9vw,40px);white-space:nowrap} body.tv .tile .k{font-size:min(1.2vw,15px)} body.tv .tile .s{font-size:min(1.3vw,16px)}
   body.tv .tile{padding:min(1vw,14px) min(1.2vw,16px)} body.tv .logo{font-size:min(1.6vw,22px)} body.tv .clock{font-size:min(1.5vw,20px)}
   body.tv .pane>h3{font-size:min(1.1vw,14px)}
+  body.tv .say{font-size:min(1.5vw,22px);min-height:min(3.2vw,46px)} body.tv .say .ic{width:min(2.4vw,34px);height:min(2.4vw,34px);font-size:min(1.4vw,20px)}
+  body.tv .nbar{height:min(3.2vw,46px);font-size:min(1.5vw,22px);line-height:min(3.2vw,46px)} body.tv .nbar .lab{font-size:min(1.1vw,15px);line-height:min(3.2vw,46px)}
+  body.tv .nbar a .src,body.tv .nbar a .t,body.tv .nbar a .new{font-size:min(1.1vw,15px)} body.tv .cc{font-size:min(.9vw,13px);line-height:1.5}
+  body.tv .bnav{display:none!important}
   body.tv .banner{transform:translate(-50%,-50%) scale(1.6)} body.tv .banner:not(.show){transform:translate(-50%,-50%) scale(1.3)}
   .tfb{font:inherit;font-size:10px;background:none;border:1px solid rgba(139,92,255,.35);color:var(--mute);border-radius:4px;padding:1px 6px;margin-left:4px;cursor:pointer}
   .tfb.on{color:#fff;border-color:var(--edge);background:rgba(255,95,199,.15)}
@@ -526,6 +530,30 @@ const FACE={
   lose: ["00000000","00000000","11100111","00000000","00000000","00111100","01000010","00000000"],
   sleep:["00000000","00000000","11100111","00000000","00000000","00011000","00000000","00000000"]};
 
+// 市場の気分メーター（左の窓）：赤＝恐怖 → 黄 → 緑＝強欲。針はなめらかに動く
+function drawMoodMeter(x,wx,wy,ww,wh,now){
+  const m=S.fng; S.fngShown=S.fngShown==null?50:S.fngShown+(m.value-S.fngShown)*.04;
+  x.save(); rr(x,wx,wy,ww,wh,4); x.clip();
+  const bg=x.createLinearGradient(0,wy,0,wy+wh); bg.addColorStop(0,"#120a22"); bg.addColorStop(1,"#07040d"); x.fillStyle=bg; x.fillRect(wx,wy,ww,wh);
+  const cx=wx+ww/2, cy=wy+wh*.72, R=Math.min(ww*.40,wh*.52), lw=Math.max(3,R*.2);
+  const segs=[["#ff3b5c",0,25],["#ff8a3d",25,45],["#ffd25c",45,56],["#9be35c",56,76],["#3ff2b5",76,100]];
+  x.lineWidth=lw; x.lineCap="butt";
+  segs.forEach(([c,a,b])=>{x.strokeStyle=c;x.globalAlpha=(m.value>=a&&m.value<=b)?1:.35;x.beginPath();
+    x.arc(cx,cy,R,Math.PI+a/100*Math.PI+.02,Math.PI+b/100*Math.PI-.02);x.stroke();});
+  x.globalAlpha=1;
+  const ang=Math.PI+S.fngShown/100*Math.PI+Math.sin(now/700)*.012;
+  x.strokeStyle="#fff"; x.lineWidth=Math.max(1.5,R*.06); x.lineCap="round";
+  x.beginPath(); x.moveTo(cx,cy); x.lineTo(cx+Math.cos(ang)*R*.86,cy+Math.sin(ang)*R*.86); x.stroke();
+  x.fillStyle="#fff"; x.beginPath(); x.arc(cx,cy,R*.09,0,7); x.fill();
+  const col=m.value<25?"#ff3b5c":m.value<45?"#ff8a3d":m.value<=55?"#ffd25c":m.value<=75?"#9be35c":"#3ff2b5";
+  x.textAlign="center"; x.fillStyle=col; x.font=`800 ${Math.max(10,R*.5)}px ui-monospace,monospace`; x.fillText(m.value,cx,cy-R*.18);
+  x.font=`700 ${Math.max(8,R*.24)}px "Hiragino Sans",sans-serif`; x.fillText(m.label,cx,cy+R*.32);
+  x.fillStyle="#9a8fb0"; x.font=`${Math.max(7,R*.19)}px "Hiragino Sans",sans-serif`; x.fillText("市場の気分",cx,wy+R*.32+4);
+  x.textAlign="left"; x.restore();
+  x.strokeStyle="rgba(139,92,255,.55)"; x.lineWidth=2; rr(x,wx,wy,ww,wh,4); x.stroke();
+}
+async function loadMood(){try{const d=await(await fetch("/api/mood")).json();if(d.value!=null)S.fng=d;}catch(e){}}
+loadMood(); setInterval(loadMood,30*60000);
 // 窓の夜景（毎回同じ配置になるよう固定の乱数）
 const CITY=(()=>{let s=7;const r=()=>(s=(s*16807)%2147483647)/2147483647;const b=[];
   for(let i=0;i<46;i++){const w=.012+r()*.03,h=.25+r()*.7;const win=[];for(let k=0;k<14;k++)win.push([r(),r(),r()*6+1]);b.push({x:i/46,w,h,win});}return b;})();
@@ -555,7 +583,9 @@ function drawRoom(now,dt){
   x.fillStyle=g; x.fillRect(0,0,W,hz);
   // 窓（左右）と夜景
   const ww=W*.15, wh=hz*.38, wy=hz*.08;
-  for(const wx of [W*.04, W*.81]){
+  if(S.fng&&S.fng.value!=null)drawMoodMeter(x,W*.04,wy,ww,wh,now); else drawWin(W*.04);
+  drawWin(W*.81);
+  function drawWin(wx){
     x.save(); rr(x,wx,wy,ww,wh,4); x.clip();
     const tod=timeOfDay(), sky=x.createLinearGradient(0,wy,0,wy+wh); sky.addColorStop(0,tod.top); sky.addColorStop(1,tod.bot); x.fillStyle=sky; x.fillRect(wx,wy,ww,wh);
     if(tod.sun){x.fillStyle=tod.sun;x.beginPath();x.arc(wx+ww*.72,wy+wh*tod.sunY,ww*.09,0,7);x.fill();}
@@ -598,7 +628,7 @@ function drawRoom(now,dt){
   const u=Math.max(2.3,Math.min(W/122,H/62));
   PAIRS.forEach((p,i)=>drawBot(x,p,W*BX(i),H*.9,u,now,i));
   // 頭上のミニチャート
-  const narrowR=W<520; S.narrowR=narrowR;
+  const narrowR=W/NP<260; S.narrowR=narrowR;     // 1体あたりの幅が狭いときは、吹き出しを頭の上に（5体なのでほぼ常に）
   PAIRS.forEach((p,i)=>drawHolo(x,p,W*BX(i),H*.9-u*(narrowR?45:37.5)-(narrowR&&i%2?u*6:0),u,now));
   // 紙吹雪
   for(let k=parts.length-1;k>=0;k--){const q=parts[k]; q.life-=dt; if(q.life<=0){parts.splice(k,1);continue;}
@@ -870,7 +900,7 @@ $("hb").onclick=e=>{e.stopPropagation();const d=S.status,p=$("hbp");if(p.classLi
   p.innerHTML=`<b>ボットの心拍</b><br>最後に動いた時刻：<b>${new Date(d.updated_at).toLocaleString("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</b>（${ago(age)}）<br>
   次の4時間足の確定まで：<b>${cd(Math.ceil(Date.now()/BAR4)*BAR4-Date.now())}</b><br>
   後追いで処理した足：<b>${(d.catchup_bars||0).toLocaleString()}本</b>（通算）<br>
-  <span style="color:var(--mute);font-size:10px">画面の版 2026-11-25 17:00</span><br>
+  <span style="color:var(--mute);font-size:10px">画面の版 2026-11-26 15:00</span><br>
   <span style="color:var(--mute);font-size:11px">GitHubの定期実行は遅れることがあります。遅れても飛ばした足をさかのぼって判断するので、8時間以内なら心配いりません。${age>=14*36e5?'<br><span class="down">⚠ 長く動いていません。GitHubのActions画面を確認してください。</span>':""}</span>`;}};
 document.addEventListener("click",e=>{if(!e.target.closest("#hbp"))$("hbp").classList.remove("show");});
 setInterval(heartbeat,1000);
@@ -1050,6 +1080,8 @@ function sayLines(){
   if(near)L.push(near.j.entry?`🚀 <b>${NAME[near.p]}</b> が買いの条件に！`:`🎯 いちばん近いのは <b>${NAME[near.p]}</b>（上抜けまで ${pct(near.j.dist,1)}）`);
   (d.orders||[]).forEach(o=>L.push(`⏳ <b>${NAME[o.pair]}</b> を指値 ${fmt(o.limit,o.pair)} で待っています`));
   L.push(`⏱ 次の4時間足の確定まで <b>${next}</b>`);
+  if(S.fng&&S.fng.value!=null){const m=S.fng,dv=m.yesterday!=null?m.value-m.yesterday:0;
+    L.push(`🌡 市場の気分は <b>${m.label}（${m.value}）</b>${m.yesterday!=null?`・前日から${dv>=0?"+":""}${dv}`:""}`);}
   const lt=d.trades[d.trades.length-1];
   if(lt)L.push(`🧾 最後の売買：${hm(lt.ts)} <b>${NAME[lt.pair]||lt.pair}</b> を${lt.side==="buy"?"買い":"売り"}（${lt.reason}）`);
   const m=d.month_return; L.push(`🗓 今月 <b class="${cls(m)}">${pct(m)}</b>・目標 +5% まで ${m>=.05?"達成！":pct(.05-m)}`);
