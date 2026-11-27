@@ -4,11 +4,11 @@
  "positions": {},
  "cooldown_until": {},
  "last_bar_ts": {
-  "btc_jpy": 1795752000000,
-  "eth_jpy": 1795752000000,
-  "xrp_jpy": 1795752000000,
-  "sol_jpy": 1795752000000,
-  "bnb_jpy": 1795752000000
+  "btc_jpy": 1795780800000,
+  "eth_jpy": 1795780800000,
+  "xrp_jpy": 1795780800000,
+  "sol_jpy": 1795780800000,
+  "bnb_jpy": 1795780800000
  },
  "month": "2026-11",
  "month_start_equity": 100000.0,
@@ -267,6 +267,10 @@
   [
    1795770275532,
    100000.0
+  ],
+  [
+   1795805687288,
+   100000.0
   ]
  ],
  "trades": [],
@@ -278,16 +282,16 @@
  },
  "log": [],
  "last_price": {
-  "btc_jpy": 9847109.0,
-  "xrp_jpy": 155.946,
-  "sol_jpy": 11725.0,
-  "eth_jpy": 276180.0,
-  "bnb_jpy": 90019.0
+  "btc_jpy": 9562857.0,
+  "xrp_jpy": 151.572,
+  "sol_jpy": 11486.5,
+  "eth_jpy": 266765.0,
+  "bnb_jpy": 88230.0
  },
  "funnel": {
   "2026-11": {
-   "checked": 169,
-   "no_setup": 169,
+   "checked": 174,
+   "no_setup": 174,
    "filtered": {},
    "entered": 0
   }
@@ -309,10 +313,11 @@
   1795672168999,
   1795707992853,
   1795739626814,
-  1795770275532
+  1795770275532,
+  1795805687288
  ],
  "orders": {},
- "catchup_bars": 40,
+ "catchup_bars": 45,
  "news_sent": [
   "https://www.neweconomy.jp/posts/629892",
   "https://coinpost.jp/?p=749505",
@@ -323,8 +328,9 @@
   "https://coinpost.jp/?p=749669",
   "https://coinpost.jp/?p=749693",
   "https://www.neweconomy.jp/posts/630801",
-  "https://coinpost.jp/?p=749685"
+  "https://coinpost.jp/?p=749685",
+  "https://www.neweconomy.jp/posts/630817"
  ],
- "news_seen_ts": 1795766642000,
- "daily_sent": "2026-11-27"
+ "news_seen_ts": 1795782900000,
+ "daily_sent": "2026-11-28"
 }
